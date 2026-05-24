@@ -41,19 +41,18 @@ sources under `oxcaml/vendor/llvm-project`, or both.
 baseline updates. Do not create new agent worktrees from it. The OxCaml
 monorepo is the review and PR unit.
 
-## Choosing an Agent Directory
+## Starting Agent Work
 
-Before creating a new agent directory, check `agents/` for an existing
-directory that already matches the requested task. If one exists, work in that
-directory and follow its `GOAL.md`.
-
-If no existing agent directory matches, create one from the workspace root:
+Use this command from the workspace root:
 
 ```sh
-./scripts/create-agent <agent-name> <branch-suffix>
+./scripts/use-or-create-agent <agent-name> [branch-suffix]
 ```
 
-After that, work in:
+If `agents/<agent-name>/` already exists, the command prints its paths. If it
+does not exist, pass `branch-suffix` and the command creates it.
+
+Work in:
 
 ```text
 agents/<agent-name>/oxcaml/
@@ -147,19 +146,18 @@ should contain:
 Delete stale history from `agents/<goal-name>/PROGRESS.md`. It is a handoff
 file, not a diary.
 
-## Creating Agent Directories
+## Agent Directory Creation
 
-Use the helper script from the workspace root, after checking that no existing
-`agents/<goal-name>/` already matches the task:
+Use the helper script from the workspace root:
 
 ```sh
-./scripts/create-agent <agent-name> <branch-suffix>
+./scripts/use-or-create-agent <agent-name> <branch-suffix>
 ```
 
 Example:
 
 ```sh
-./scripts/create-agent stack-checks llvm-stack-checks
+./scripts/use-or-create-agent stack-checks llvm-stack-checks
 ```
 
 This creates:
@@ -201,14 +199,14 @@ separate from semantic changes when possible.
 Do not treat the LLVM workflow as requiring four conceptual stages. The
 important validation levels are:
 
-1. Direct `_install`: the compiler produced by `make install`.
-2. Self-stage2: a compiler rebuilt using the LLVM backend, used as the final
-   self-hosting proof.
+1. Normal iteration: the standard installed compiler produced by
+   `make install`, with `-llvm-backend`.
+2. Full validation: self-stage2, a compiler rebuilt using the LLVM backend.
 
 The scripts have historical names such as `stage4` and `stage5`, and the
 self-stage builder has internal boot/runtime/main build directories. Those are
-implementation details. Agent work should normally debug with direct `_install`
-first, then use self-stage2 only when the direct compiler is already green or
+implementation details. Agent work should normally debug with the standard
+installed compiler and `-llvm-backend`. Use self-stage2 for full validation or
 when the agent goal is explicitly about self-hosting.
 
 ## Build Times
@@ -282,10 +280,11 @@ Use focused reproducers and tests before broad self-hosting runs. Broad tests
 are valuable, but they are expensive and harder to debug when they fail.
 
 If a self-stage or stage2 test fails, first try to reduce it to a focused test
-case that already fails with the direct `_install` compiler. That is the normal
-debugging target. If the failure only reproduces with self-stage2, record that
-fact in `PROGRESS.md`, keep the smallest self-stage2 reproducer you found, and
-explain why direct `_install` does not cover it.
+case that already fails with the standard compiler using `-llvm-backend`. That
+is the normal debugging target. If the failure only reproduces with
+self-stage2, record that fact in `PROGRESS.md`, keep the smallest self-stage2
+reproducer you found, and explain why the standard `-llvm-backend` compiler
+does not cover it.
 
 For backend-generated executable failures, try `_install` first:
 
@@ -310,11 +309,11 @@ compiler.
 
 ## Current Main Status
 
-As of 2026-05-24, the main checkout has evidence that both the direct
-`_install` compiler and a self-stage2 compiler pass the full LLVM-backend
-testsuite. See `main/PROGRESS.md` for exact commands, counts, and wrapper
-evidence.
+As of 2026-05-24, the main checkout has evidence that both the standard
+installed compiler with `-llvm-backend` and a self-stage2 compiler pass the
+full LLVM-backend testsuite. See `main/PROGRESS.md` for exact commands, counts,
+and wrapper evidence.
 
 Do not claim broader replacement readiness from this alone. New work should
-still prove the relevant path with focused direct `_install` tests first, then
-use self-stage2 as the final integration gate when needed.
+still prove the relevant path with focused standard `-llvm-backend` tests first,
+then use self-stage2 as the final integration gate when needed.

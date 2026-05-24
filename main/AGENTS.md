@@ -2,10 +2,9 @@
 
 This directory is the known-good integration checkout.
 
-Do not do exploratory work here. Use `../scripts/create-agent` to create a
-per-goal agent directory and work there. Before creating one, check whether an
-existing `../agents/<goal-name>/` already matches the task; if it does, use
-that directory instead.
+Do not do exploratory work here. Start agent work from the workspace root with
+`scripts/use-or-create-agent <agent-name> [branch-suffix]`, then work in the
+agent directory it prints.
 
 The expected branches are:
 
@@ -18,11 +17,10 @@ agent target.
 Use this checkout to verify the integration state and to create new OxCaml
 branches for agent work.
 
-The validation levels are direct `_install` and self-stage2. The historical
-`stage4`/`stage5` script names are implementation details, not a requirement
-for four conceptual stages. When investigating a failure, reduce it to a
-focused direct `_install` test whenever possible; use self-stage2 as the final
-self-hosting proof or when the failure genuinely only reproduces there.
+The normal iteration path is the standard installed compiler with
+`-llvm-backend`. Self-stage2 is for full validation or for failures that
+genuinely only reproduce there. The historical `stage4`/`stage5` script names
+are implementation details, not a requirement for four conceptual stages.
 
 When a nested repo `AGENTS.md` says to test or format, do it only when it makes
 sense for the current step. Full tests can take a long time, so avoid running

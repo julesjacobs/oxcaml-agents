@@ -2,19 +2,40 @@
 set -eu
 
 usage() {
-  echo "usage: $0 <agent-name> <branch-suffix>" >&2
+  echo "usage: $0 <agent-name> [branch-suffix]" >&2
   echo "example: $0 tail-calls llvm-tail-call-domainstate-results" >&2
   exit 2
 }
 
-[ "$#" -eq 2 ] || usage
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
 
 agent_name=$1
-branch_suffix=$2
+branch_suffix=${2:-}
 
 case "$agent_name" in
   *[!A-Za-z0-9._-]*|'') usage ;;
 esac
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+agent_dir="$workspace/agents/$agent_name"
+
+if [ -e "$agent_dir" ]; then
+  if [ ! -d "$agent_dir" ]; then
+    echo "agent path exists but is not a directory: $agent_dir" >&2
+    exit 1
+  fi
+  echo "using existing $agent_dir"
+  echo "Code checkout: $agent_dir/oxcaml"
+  echo "Goal: $agent_dir/GOAL.md"
+  echo "Progress: $agent_dir/PROGRESS.md"
+  exit 0
+fi
+
+if [ -z "$branch_suffix" ]; then
+  echo "agent directory does not exist: $agent_dir" >&2
+  echo "pass branch-suffix to create it" >&2
+  usage
+fi
 
 case "$branch_suffix" in
   jujacobs/*)
@@ -24,16 +45,8 @@ case "$branch_suffix" in
   *[!A-Za-z0-9._/-]*|'') usage ;;
 esac
 
-workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-agent_dir="$workspace/agents/$agent_name"
 ox_branch="jujacobs/$branch_suffix"
 today=$(date +%F)
-
-if [ -e "$agent_dir" ]; then
-  echo "agent directory already exists: $agent_dir" >&2
-  echo "use that directory if it matches the task, or choose a different agent-name" >&2
-  exit 1
-fi
 
 if [ ! -d "$workspace/main/oxcaml/vendor/llvm-project" ]; then
   echo "warning: main/oxcaml/vendor/llvm-project does not exist yet" >&2
@@ -127,13 +140,14 @@ When testing LLVM-backend behavior, verify real LLVM use by checking
 \`/tmp/oxcaml-clang-wrapper.log\` for \`-x ir\` and the fixed-register flags.
 
 Do not treat the historical \`stage4\`/\`stage5\` script names as conceptual
-validation stages. Debug with the direct \`_install\` compiler first; use
-self-stage2 as the final self-hosting proof unless \`GOAL.md\` says otherwise.
+validation stages. During normal work, iterate with the standard installed
+compiler and \`-llvm-backend\`. Use self-stage2 for full validation unless
+\`GOAL.md\` says otherwise.
 
 If a self-stage or stage2 failure appears, first try to reduce it to a focused
-test case that already fails with the direct \`_install\` compiler. If it only
-reproduces with self-stage2, record the smallest self-stage2 reproducer and why
-direct \`_install\` does not cover it.
+test case that already fails with the standard compiler using \`-llvm-backend\`.
+If it only reproduces with self-stage2, record the smallest self-stage2
+reproducer and why the standard \`-llvm-backend\` compiler does not cover it.
 EOF
 
 echo "created $agent_dir"
