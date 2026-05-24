@@ -240,7 +240,7 @@ If you need a clang wrapper:
 eval "\$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"
 \`\`\`
 
-Use \`$LLVM_PATH\` and check \`$LLVM_WRAPPER_LOG\`. Do not use a shared wrapper
+Use \`\$LLVM_PATH\` and check \`\$LLVM_WRAPPER_LOG\`. Do not use a shared wrapper
 or log. Verify real LLVM use by checking for \`-x ir\` and the fixed-register
 flags.
 
