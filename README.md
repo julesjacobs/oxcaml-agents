@@ -297,8 +297,10 @@ briefly in the agent's canonical progress file.
 
 ## Testing Rules
 
-Avoid running multiple `make` or `dune` commands at the same time in the same
-checkout.
+Avoid starting multiple independent `make` or `dune` commands at the same time
+in the same checkout, because they may contend on dune's lockfile and deadlock.
+This does not mean single builds should be serialized: let one build/test
+command use its normal internal parallelism.
 
 The custom `tools/run-llvm-stage5-ocamltest.sh` harness is designed for
 stage-style validation and is slower than the regular testsuite targets. Use it

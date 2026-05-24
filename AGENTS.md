@@ -35,8 +35,10 @@ Advice:
   when they update `agent-state/<goal-name>/PROGRESS.md`.
 - Push committed progress updates so the current handoff state is visible on
   the agent's GitHub PR.
-- Avoid running multiple `make` or `dune` commands at the same time in the same
-  checkout.
+- Avoid starting multiple independent `make` or `dune` commands at the same
+  time in the same checkout, because they may contend on dune's lockfile and
+  deadlock. This does not mean single builds should be serialized: let one
+  build/test command use its normal internal parallelism.
 - Before LLVM-backend work in an agent checkout, run
   `eval "$(../../../scripts/agent-tmp-env)"`. If you need a clang wrapper, run
   `eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"`. Use
