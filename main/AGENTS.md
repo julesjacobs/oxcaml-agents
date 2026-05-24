@@ -4,7 +4,8 @@ This directory is the known-good integration checkout.
 
 Do not do exploratory work here. Start agent work from the workspace root with
 `scripts/use-or-create-agent <agent-name>`, then work in the agent directory it
-prints.
+prints. The script opens the draft OxCaml PR and records its link in the agent
+directory.
 
 The expected branches are:
 

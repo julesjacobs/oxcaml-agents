@@ -5,7 +5,7 @@ This workspace coordinates multiple agents working on the OxCaml LLVM backend.
 Start from the workspace root with
 `scripts/use-or-create-agent <agent-name>`. It prints the existing agent paths
 when `agents/<agent-name>/` exists, or creates that agent with branch
-`jujacobs/<agent-name>` when it does not.
+`jujacobs/<agent-name>` and opens a draft OxCaml PR when it does not.
 
 Inside an agent directory, `GOAL.md` decides whether the agent may edit OxCaml
 sources, vendored LLVM sources under `oxcaml/vendor/llvm-project`, or both. The
@@ -22,6 +22,8 @@ Advice:
 - Keep the relevant progress file compact and useful for handoff:
   `agents/<goal-name>/PROGRESS.md` for agent work, or `main/PROGRESS.md` for
   integration-checkout status.
+- Record the OxCaml PR link in `agents/<goal-name>/GOAL.md` and
+  `agents/<goal-name>/PROGRESS.md`.
 - When a nested repo `AGENTS.md` says to test or format, do it only when it
   makes sense for the current step. Full tests can take a long time, so avoid
   running them while still reducing or investigating a failure. If an

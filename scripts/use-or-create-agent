@@ -17,6 +17,8 @@ esac
 
 workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 agent_dir="$workspace/agents/$agent_name"
+base_branch="jujacobs/llvm-backend-integration"
+repo="julesjacobs/oxcaml"
 
 if [ -e "$agent_dir" ]; then
   if [ ! -d "$agent_dir" ]; then
@@ -33,22 +35,64 @@ fi
 ox_branch="jujacobs/$agent_name"
 today=$(date +%F)
 
+if ! command -v gh >/dev/null 2>&1; then
+  echo "gh is required to create the draft PR" >&2
+  exit 1
+fi
+
+gh auth status >/dev/null
+
 if [ ! -d "$workspace/main/oxcaml/vendor/llvm-project" ]; then
   echo "warning: main/oxcaml/vendor/llvm-project does not exist yet" >&2
   echo "run scripts/import-vendored-llvm after the vendored LLVM baseline is ready" >&2
 fi
 
 if [ -z "$(git -C "$workspace/main/oxcaml" ls-tree -d --name-only \
-  jujacobs/llvm-backend-integration vendor/llvm-project)" ]; then
-  echo "vendored LLVM is not committed on jujacobs/llvm-backend-integration" >&2
+  "$base_branch" vendor/llvm-project)" ]; then
+  echo "vendored LLVM is not committed on $base_branch" >&2
   echo "commit the vendor/llvm-project baseline before creating agents" >&2
   exit 1
 fi
 
+origin_url=$(git -C "$workspace/main/oxcaml" remote get-url --push origin)
+case "$origin_url" in
+  *github.com/julesjacobs/oxcaml.git|*github.com:julesjacobs/oxcaml.git) ;;
+  *)
+    echo "main/oxcaml origin must push to Jules's fork, got: $origin_url" >&2
+    exit 1
+    ;;
+esac
+
 mkdir -p "$agent_dir"
 
 git -C "$workspace/main/oxcaml" worktree add -b "$ox_branch" \
-  "$agent_dir/oxcaml" jujacobs/llvm-backend-integration
+  "$agent_dir/oxcaml" "$base_branch"
+
+git -C "$agent_dir/oxcaml" commit --allow-empty -m "Start agent $agent_name"
+git -C "$agent_dir/oxcaml" push -u origin "$ox_branch"
+
+pr_body=$(mktemp)
+trap 'rm -f "$pr_body"' EXIT
+cat > "$pr_body" <<EOF
+Goal:
+TBD.
+
+Current state:
+- Agent workspace created at \`agents/$agent_name/\`.
+- No code changes yet.
+
+Notes:
+- OxCaml branch: \`$ox_branch\`
+- Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+EOF
+
+pr_url=$(gh pr create \
+  --repo "$repo" \
+  --base "$base_branch" \
+  --head "$ox_branch" \
+  --draft \
+  --title "Agent: $agent_name" \
+  --body-file "$pr_body")
 
 cat > "$agent_dir/GOAL.md" <<EOF
 # Goal
@@ -67,7 +111,7 @@ Describe the concrete goal for this agent.
 
 ## Pull Requests
 
-- OxCaml PR: TBD
+- OxCaml PR: $pr_url
 EOF
 
 cat > "$agent_dir/PROGRESS.md" <<EOF
@@ -82,6 +126,8 @@ Fresh agent workspace created. No claim yet.
 ## Evidence
 
 - OxCaml branch: \`$ox_branch\`
+- OxCaml PR: $pr_url
+- Initial PR commit: \`$(git -C "$agent_dir/oxcaml" rev-parse --short=12 HEAD)\`
 - Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
 
 ## Current Blocker
@@ -137,4 +183,5 @@ EOF
 
 echo "created $agent_dir"
 echo "OxCaml branch: $ox_branch"
+echo "OxCaml PR: $pr_url"
 echo "Vendored LLVM path: $agent_dir/oxcaml/vendor/llvm-project"

@@ -50,7 +50,9 @@ Use this command from the workspace root:
 ```
 
 If `agents/<agent-name>/` already exists, the command prints its paths. If it
-does not exist, the command creates it with branch `jujacobs/<agent-name>`.
+does not exist, the command creates it with branch `jujacobs/<agent-name>`,
+pushes that branch to `julesjacobs/oxcaml`, opens a draft OxCaml PR, and records
+the PR link in the agent files.
 
 Work in:
 
@@ -88,9 +90,10 @@ own work into it unless their `GOAL.md` explicitly says to do so.
 
 ## Pull Requests
 
-Open draft OxCaml PRs early against the personal integration branch. These PRs
-are for tracking, browsing diffs, review comments, and agent review. They do
-not mean the work is ready for upstream.
+`scripts/use-or-create-agent` opens a draft OxCaml PR against the personal
+integration branch when it creates a new agent. These PRs are for tracking,
+browsing diffs, review comments, and agent review. They do not mean the work is
+ready for upstream.
 
 Vendored LLVM changes should live in the same OxCaml branch and PR as the
 OxCaml changes that require them. Use `julesjacobs/llvm-project` only when
@@ -128,7 +131,7 @@ LLVM backend path and toolchain were actually exercised.
 Each agent directory has:
 
 - `agents/<goal-name>/GOAL.md`: the current task, scope, editable paths, and
-  expected output.
+  expected output, plus the OxCaml PR link.
 - `agents/<goal-name>/PROGRESS.md`: compact handoff notes for that agent.
 - `agents/<goal-name>/AGENTS.md`: local instructions for that agent.
 - `agents/<goal-name>/oxcaml/`: the agent's OxCaml checkout and code working
@@ -169,6 +172,9 @@ agents/llvm-stack-checks/
   GOAL.md
   PROGRESS.md
 ```
+
+It also pushes `jujacobs/llvm-stack-checks`, opens a draft PR in
+`julesjacobs/oxcaml`, and records the PR link in `GOAL.md` and `PROGRESS.md`.
 
 The agent's LLVM edit location is
 `agents/llvm-stack-checks/oxcaml/vendor/llvm-project`.
