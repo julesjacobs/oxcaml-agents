@@ -1,0 +1,13 @@
+# Local compiler and LLVM checkouts. These are real Git repositories/worktrees
+# managed separately from this coordination repo.
+/main/oxcaml/
+/main/llvm-project/
+
+# Agent worktrees are generated locally by scripts/create-agent.
+/agents/*/oxcaml/
+/agents/*/llvm-project/
+
+# Build and editor noise.
+.DS_Store
+*.swp
+*~

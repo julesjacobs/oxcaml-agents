@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -lt 3 ]; then
+  echo "usage: $0 <timings-file> <step-name> <command> [args...]" >&2
+  exit 2
+fi
+
+timings_file=$1
+step_name=$2
+shift 2
+cmd=$1
+shift
+
+mkdir -p "$(dirname "$timings_file")"
+
+start_epoch=$(date +%s)
+start_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+printf '\n## %s\n\n' "$step_name" >> "$timings_file"
+printf -- '- Start: `%s`\n' "$start_iso" >> "$timings_file"
+printf -- '- Command: `' >> "$timings_file"
+printf '%s' "$cmd" >> "$timings_file"
+for arg in "$@"; do
+  printf ' %s' "$arg" >> "$timings_file"
+done
+printf '`\n' >> "$timings_file"
+
+set +e
+"$cmd" "$@"
+status=$?
+set -e
+
+end_epoch=$(date +%s)
+end_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+duration=$((end_epoch - start_epoch))
+
+printf -- '- End: `%s`\n' "$end_iso" >> "$timings_file"
+printf -- '- Duration: `%ds`\n' "$duration" >> "$timings_file"
+printf -- '- Exit status: `%d`\n' "$status" >> "$timings_file"
+
+exit "$status"

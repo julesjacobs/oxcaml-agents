@@ -1,0 +1,78 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 [llvm-source] [oxcaml-checkout]" >&2
+  echo "default llvm-source: main/llvm-project" >&2
+  echo "default oxcaml-checkout: main/oxcaml" >&2
+  exit 2
+}
+
+[ "$#" -le 2 ] || usage
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+llvm_src=${1:-"$workspace/main/llvm-project"}
+oxcaml_checkout=${2:-"$workspace/main/oxcaml"}
+vendor_dir="$oxcaml_checkout/vendor/llvm-project"
+metadata_dir="$oxcaml_checkout/vendor"
+metadata_file="$metadata_dir/LLVM_BASE.md"
+
+require_git_repo() {
+  git -C "$1" rev-parse --show-toplevel >/dev/null
+}
+
+require_clean() {
+  if [ -n "$(git -C "$1" status --porcelain)" ]; then
+    echo "refusing to import from dirty repo: $1" >&2
+    echo "set ALLOW_DIRTY_LLVM=1 only for intentional local snapshots" >&2
+    exit 1
+  fi
+}
+
+require_git_repo "$llvm_src"
+require_git_repo "$oxcaml_checkout"
+
+if [ "${ALLOW_DIRTY_LLVM:-0}" != 1 ]; then
+  require_clean "$llvm_src"
+fi
+
+if [ "${ALLOW_DIRTY_OXCAML:-0}" != 1 ]; then
+  if [ -n "$(git -C "$oxcaml_checkout" status --porcelain)" ]; then
+    echo "refusing to import into dirty OxCaml checkout: $oxcaml_checkout" >&2
+    echo "commit or stash current work first, or set ALLOW_DIRTY_OXCAML=1" >&2
+    exit 1
+  fi
+fi
+
+if [ -e "$vendor_dir" ]; then
+  echo "refusing to overwrite existing vendored LLVM: $vendor_dir" >&2
+  exit 1
+fi
+
+mkdir -p "$vendor_dir" "$metadata_dir"
+
+commit=$(git -C "$llvm_src" rev-parse HEAD)
+branch=$(git -C "$llvm_src" branch --show-current || true)
+origin=$(git -C "$llvm_src" remote get-url origin 2>/dev/null || true)
+
+git -C "$llvm_src" archive HEAD | tar -x -C "$vendor_dir"
+
+cat > "$metadata_file" <<EOF
+# Vendored LLVM Base
+
+- Source: \`${origin:-unknown}\`
+- Branch: \`${branch:-detached}\`
+- Commit: \`$commit\`
+
+This records the upstream LLVM snapshot imported into
+\`vendor/llvm-project\`. Agent changes to vendored LLVM should be reviewed in
+the same OxCaml PR as the OxCaml changes that require them.
+EOF
+
+cat <<EOF
+Vendored LLVM imported:
+  $vendor_dir
+
+Base metadata:
+  $metadata_file
+EOF

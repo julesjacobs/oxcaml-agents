@@ -1,0 +1,293 @@
+# OxCaml LLVM Multi-Agent Workspace
+
+This workspace is for coordinated work on making the OxCaml LLVM backend good
+enough to replace the native backend when explicitly enabled.
+
+The workspace is intentionally split into independent OxCaml worktrees so
+several agents can build and test at the same time without fighting over Dune
+locks, generated files, or local branches. LLVM lives inside each OxCaml
+worktree at `vendor/llvm-project`, so an agent can make OxCaml and LLVM changes
+on one branch and one PR.
+
+## Layout
+
+```text
+~/git/oxcaml-llvm/
+  main/
+    oxcaml/
+      vendor/
+        llvm-project/
+    llvm-project/  # import-source checkout, not an agent target
+    AGENTS.md
+    PROGRESS.md
+  agents/
+    <goal-name>/
+      oxcaml/
+        vendor/
+          llvm-project/
+      AGENTS.md
+      GOAL.md
+      PROGRESS.md
+```
+
+`main/` is the known-good integration checkout. It should stay clean and track
+the current personal integration branch.
+
+`agents/<goal-name>/` is where one agent works on one concrete goal. The local
+`GOAL.md` decides whether that agent may edit OxCaml sources, vendored LLVM
+sources under `oxcaml/vendor/llvm-project`, or both.
+
+`main/llvm-project` may exist as an import source for future vendored LLVM
+baseline updates. Do not create new agent worktrees from it. The OxCaml
+monorepo is the review and PR unit.
+
+## Branches
+
+Use branches in Jules's personal fork, not upstream repositories.
+
+Branch names should describe the goal:
+
+```text
+jujacobs/llvm-tail-call-domainstate-results
+jujacobs/llvm-stack-check-audit
+jujacobs/llvm-statepoint-frame-table-contract
+```
+
+Do not use branches named `codex/...`.
+
+Agents should branch from the personal integration branch unless `GOAL.md` says
+otherwise. A typical flow is:
+
+```text
+jujacobs/llvm-tail-call-domainstate-results
+  -> jujacobs/llvm-backend-integration
+```
+
+The integration branch is updated deliberately. Agents should not merge their
+own work into it unless their `GOAL.md` explicitly says to do so.
+
+## Pull Requests
+
+Open draft OxCaml PRs early against the personal integration branch. These PRs
+are for tracking, browsing diffs, review comments, and agent review. They do
+not mean the work is ready for upstream.
+
+Vendored LLVM changes should live in the same OxCaml branch and PR as the
+OxCaml changes that require them. Use `julesjacobs/llvm-project` only when
+maintaining the LLVM import-source checkout or when explicitly asked to publish
+a standalone LLVM branch.
+
+Each draft PR should make the current state clear:
+
+```md
+Goal:
+...
+
+Current state:
+- Works: ...
+- Fails: ...
+- Unknown: ...
+
+Vendored LLVM changes:
+- ...
+
+Evidence:
+- Command: ...
+- Result: ...
+
+Notes:
+...
+```
+
+GitHub is useful for review and coordination, but custom LLVM-backend validation
+is usually local. Do not treat a green GitHub status as proof unless the relevant
+LLVM backend path and toolchain were actually exercised.
+
+## Agent Files
+
+Each agent directory has:
+
+- `GOAL.md`: the current task, scope, editable paths, and expected output.
+- `PROGRESS.md`: compact handoff notes.
+- `AGENTS.md`: local instructions for that agent.
+
+Keep `PROGRESS.md` short, usually one or two pages. It should contain:
+
+- Current claim.
+- Evidence: commands, exact results, and important log paths.
+- Current blocker.
+- Next step.
+- Active branches, commits, and PR links.
+
+Delete stale history from `PROGRESS.md`. It is a handoff file, not a diary.
+
+## Creating Agent Directories
+
+Use the helper script from the workspace root:
+
+```sh
+./scripts/create-agent <agent-name> <branch-suffix>
+```
+
+Example:
+
+```sh
+./scripts/create-agent stack-checks llvm-stack-checks
+```
+
+This creates:
+
+```text
+agents/stack-checks/
+  oxcaml/        # branch jujacobs/llvm-stack-checks
+  AGENTS.md
+  GOAL.md
+  PROGRESS.md
+```
+
+The agent's LLVM edit location is
+`agents/stack-checks/oxcaml/vendor/llvm-project`.
+
+The helper was smoke-tested by creating two agent worktrees from `main/`; those
+smoke worktrees have been removed.
+
+## Vendoring LLVM
+
+Use the helper script from the workspace root:
+
+```sh
+./scripts/import-vendored-llvm [llvm-source] [oxcaml-checkout]
+```
+
+The current vendored baseline was imported from `main/llvm-project` into
+`main/oxcaml/vendor/llvm-project`. The source branch and commit are recorded in
+`main/oxcaml/vendor/LLVM_BASE.md`. Re-run the helper only for deliberate
+baseline updates.
+
+Make the initial vendoring import a mechanical baseline commit or PR. After
+that baseline exists, agent branches can change both OxCaml files and files
+under `vendor/llvm-project` in the same OxCaml PR. Keep baseline updates
+separate from semantic changes when possible.
+
+## Validation Levels
+
+Do not treat the LLVM workflow as requiring four conceptual stages. The
+important validation levels are:
+
+1. Direct `_install`: the compiler produced by `make install`.
+2. Self-stage2: a compiler rebuilt using the LLVM backend, used as the final
+   self-hosting proof.
+
+The scripts have historical names such as `stage4` and `stage5`, and the
+self-stage builder has internal boot/runtime/main build directories. Those are
+implementation details. Agent work should normally debug with direct `_install`
+first, then use self-stage2 only when the direct compiler is already green or
+when the agent goal is explicitly about self-hosting.
+
+## Build Times
+
+Record long-running build and test commands in `main/BUILD_TIMES.md` with:
+
+```sh
+./scripts/timed-command main/BUILD_TIMES.md <step-name> <command> ...
+```
+
+Agents should check that file before deciding whether to run broad validation.
+Current useful timings on this machine:
+
+- `make install`: about 180s.
+- `make install_for_test`: 183s.
+- `DUNE_BUILD_FLAGS=-j1 make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-wrapper`: about 3000-3300s, succeeds.
+- Direct `_install` full LLVM-backend testsuite through
+  `tools/run-llvm-stage5-ocamltest.sh`: about 1700s, succeeds.
+- Self-stage2 full LLVM-backend testsuite through
+  `tools/run-llvm-stage5-ocamltest.sh`: about 1700s after the stage2 install,
+  succeeds.
+- Earlier parallel `make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-wrapper`: 157-262s before failing with a stage-main segfault.
+- `make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-force-omit-fp`: 519s before failing with a stage-main segfault.
+- Focused `tests/frame-pointers`: about 35-45s in the LLVM harness.
+
+## Commit Policy
+
+Commit real code or test progress. Do not make progress-note-only commits unless
+the notes are part of the same commit as a real change.
+
+Experiments may live on experiment branches, for example:
+
+```text
+jujacobs/exp-llvm-stack-check-measurement
+```
+
+Candidate fixes should be cleaned up before review, for example:
+
+```text
+jujacobs/llvm-stack-check-prologue-fix
+```
+
+## Review Policy
+
+Before continuing after a push or review request, agents should check unresolved
+GitHub review comments on their active PR.
+
+Agents must verify review comments locally before changing code. Do not blindly
+accept comments from review agents. If a comment is rejected, record the reason
+briefly in `PROGRESS.md`.
+
+## Testing Rules
+
+Avoid running multiple `make` or `dune` commands at the same time in the same
+checkout.
+
+The LLVM stage build scripts accept extra dune flags through `DUNE_BUILD_FLAGS`.
+For example, use `DUNE_BUILD_FLAGS="-j1"` when investigating nondeterministic
+or parallel-only self-stage crashes.
+
+When testing LLVM-backend behavior, prove real LLVM use. The usual check is that
+the wrapper log contains `-x ir` and the fixed-register flags. The stage scripts
+default the log path to `$LLVM_WRAPPER.log`; set `LLVM_WRAPPER_LOG` if using a
+wrapper with a different log path.
+
+```text
+-ffixed-x15 -ffixed-x26 -ffixed-x27 -ffixed-x28
+```
+
+Use focused reproducers and tests before broad self-hosting runs. Broad tests
+are valuable, but they are expensive and harder to debug when they fail.
+
+If a self-stage or stage2 test fails, first try to reduce it to a focused test
+case that already fails with the direct `_install` compiler. That is the normal
+debugging target. If the failure only reproduces with self-stage2, record that
+fact in `PROGRESS.md`, keep the smallest self-stage2 reproducer you found, and
+explain why direct `_install` does not cover it.
+
+For backend-generated executable failures, try `_install` first:
+
+```sh
+STAGE_INSTALL=$PWD/_install \
+STAGE_BUILD=$PWD/_build \
+NORMAL_BUILD=$PWD/_build \
+FAKE_ROOT=/tmp/oxcaml-stage0-ocamltest-src \
+LIST=/tmp/oxcaml-stage0-frame-list.txt \
+GENERATE_LIST=0 \
+LLVM_WRAPPER=/tmp/oxcaml-main-clang-wrapper \
+  tools/run-llvm-stage5-ocamltest.sh
+```
+
+For frame-pointer correctness on ARM64, `_install` is only a quick smoke check:
+it links against a normally built stdlib, so it is a mixed-backend run. Prefer
+`_llvm_self_stage_install` for cheap frame-pointer iteration and
+`_llvm_self_stage2_install` when validating self-hosted behavior.
+
+For benchmarks, use the compiler produced by `make install`, not the boot
+compiler.
+
+## Current Main Status
+
+As of 2026-05-24, the main checkout has evidence that both the direct
+`_install` compiler and a self-stage2 compiler pass the full LLVM-backend
+testsuite. See `main/PROGRESS.md` for exact commands, counts, and wrapper
+evidence.
+
+Do not claim broader replacement readiness from this alone. New work should
+still prove the relevant path with focused direct `_install` tests first, then
+use self-stage2 as the final integration gate when needed.

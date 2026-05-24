@@ -1,0 +1,137 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 <agent-name> <branch-suffix>" >&2
+  echo "example: $0 tail-calls llvm-tail-call-domainstate-results" >&2
+  exit 2
+}
+
+[ "$#" -eq 2 ] || usage
+
+agent_name=$1
+branch_suffix=$2
+
+case "$agent_name" in
+  *[!A-Za-z0-9._-]*|'') usage ;;
+esac
+
+case "$branch_suffix" in
+  jujacobs/*)
+    echo "pass branch suffix without the jujacobs/ prefix" >&2
+    exit 2
+    ;;
+  *[!A-Za-z0-9._/-]*|'') usage ;;
+esac
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+agent_dir="$workspace/agents/$agent_name"
+ox_branch="jujacobs/$branch_suffix"
+today=$(date +%F)
+
+if [ -e "$agent_dir" ]; then
+  echo "agent directory already exists: $agent_dir" >&2
+  exit 1
+fi
+
+if [ ! -d "$workspace/main/oxcaml/vendor/llvm-project" ]; then
+  echo "warning: main/oxcaml/vendor/llvm-project does not exist yet" >&2
+  echo "run scripts/import-vendored-llvm after the vendored LLVM baseline is ready" >&2
+fi
+
+if [ -z "$(git -C "$workspace/main/oxcaml" ls-tree -d --name-only \
+  jujacobs/llvm-backend-integration vendor/llvm-project)" ]; then
+  echo "vendored LLVM is not committed on jujacobs/llvm-backend-integration" >&2
+  echo "commit the vendor/llvm-project baseline before creating agents" >&2
+  exit 1
+fi
+
+mkdir -p "$agent_dir"
+
+git -C "$workspace/main/oxcaml" worktree add -b "$ox_branch" \
+  "$agent_dir/oxcaml" jujacobs/llvm-backend-integration
+
+cat > "$agent_dir/GOAL.md" <<EOF
+# Goal
+
+Describe the concrete goal for this agent.
+
+## Scope
+
+- Primary repo: OxCaml monorepo at \`oxcaml/\`
+- Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+- Expected output: TBD
+
+## Branches
+
+- OxCaml: \`$ox_branch\`
+
+## Pull Requests
+
+- OxCaml PR: TBD
+EOF
+
+cat > "$agent_dir/PROGRESS.md" <<EOF
+# Progress
+
+Last updated: $today.
+
+## Current Claim
+
+Fresh agent workspace created. No claim yet.
+
+## Evidence
+
+- OxCaml branch: \`$ox_branch\`
+- Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+
+## Current Blocker
+
+Fill in \`GOAL.md\`.
+
+## Next Step
+
+Define the goal, then make the smallest focused change or reproducer.
+EOF
+
+cat > "$agent_dir/AGENTS.md" <<EOF
+# Agent Instructions
+
+Follow \`GOAL.md\`.
+
+Keep \`PROGRESS.md\` compact: current claim, evidence, current blocker, next
+step, branches, commits, and PR links.
+
+Commit real code or test progress. Do not commit progress-note-only changes
+unless they are part of the same commit as a real change.
+
+Push agent branches to Jules's \`julesjacobs/oxcaml\` fork. Use
+\`julesjacobs/llvm-project\` only for maintaining the LLVM import-source
+checkout or when explicitly requested. Do not push to upstream repositories.
+
+Before acting on GitHub review comments, verify that the comment is correct.
+
+Avoid running multiple \`make\` or \`dune\` commands at the same time in the
+same checkout.
+
+When a nested repo \`AGENTS.md\` says to test or format, do it only when it
+makes sense for the current step. Full tests can take a long time, so avoid
+running them while still reducing or investigating a failure. If an instruction
+says to use \`-s\`, skip \`-s\` when command output is needed for debugging.
+
+When testing LLVM-backend behavior, verify real LLVM use by checking
+\`/tmp/oxcaml-clang-wrapper.log\` for \`-x ir\` and the fixed-register flags.
+
+Do not treat the historical \`stage4\`/\`stage5\` script names as conceptual
+validation stages. Debug with the direct \`_install\` compiler first; use
+self-stage2 as the final self-hosting proof unless \`GOAL.md\` says otherwise.
+
+If a self-stage or stage2 failure appears, first try to reduce it to a focused
+test case that already fails with the direct \`_install\` compiler. If it only
+reproduces with self-stage2, record the smallest self-stage2 reproducer and why
+direct \`_install\` does not cover it.
+EOF
+
+echo "created $agent_dir"
+echo "OxCaml branch: $ox_branch"
+echo "Vendored LLVM path: $agent_dir/oxcaml/vendor/llvm-project"
