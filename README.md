@@ -69,6 +69,22 @@ The task definition is
 for that agent go in
 `agents/<agent-name>/oxcaml/agent-state/<agent-name>/PROGRESS.md`.
 
+Before LLVM-backend work in an agent checkout, initialize per-agent temporary
+paths:
+
+```sh
+eval "$(../../../scripts/agent-tmp-env)"
+```
+
+If you need a clang wrapper:
+
+```sh
+eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"
+```
+
+Use `$LLVM_PATH` and check `$LLVM_WRAPPER_LOG`. Do not use a shared wrapper or
+log.
+
 ## Branches
 
 Use branches in Jules's personal fork, not upstream repositories.
@@ -235,19 +251,19 @@ Record long-running build and test commands in `main/BUILD_TIMES.md` with:
 ./scripts/timed-command main/BUILD_TIMES.md <step-name> <command> ...
 ```
 
-Agents should check that file before deciding whether to run broad validation.
-Current useful timings on this machine:
+Agents can check that file to estimate cost before broad validation. Treat the
+commands there as historical records, not recipes to copy.
+
+Current rough timings on this machine:
 
 - `make install`: about 180s.
 - `make install_for_test`: 183s.
-- `DUNE_BUILD_FLAGS=-j1 make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-wrapper`: about 3000-3300s, succeeds.
+- Self-stage2 install: about 3000-3300s, succeeds.
 - Direct `_install` full LLVM-backend testsuite through
   `tools/run-llvm-stage5-ocamltest.sh`: about 1700s, succeeds.
 - Self-stage2 full LLVM-backend testsuite through
   `tools/run-llvm-stage5-ocamltest.sh`: about 1700s after the stage2 install,
   succeeds.
-- Earlier parallel `make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-wrapper`: 157-262s before failing with a stage-main segfault.
-- `make llvm-self-stage2-install LLVM_PATH=/tmp/oxcaml-main-clang-force-omit-fp`: 519s before failing with a stage-main segfault.
 - Focused `tests/frame-pointers`: about 35-45s in the LLVM harness.
 
 ## Commit Policy
@@ -284,14 +300,13 @@ briefly in the agent's canonical progress file.
 Avoid running multiple `make` or `dune` commands at the same time in the same
 checkout.
 
-The LLVM stage build scripts accept extra dune flags through `DUNE_BUILD_FLAGS`.
-For example, use `DUNE_BUILD_FLAGS="-j1"` when investigating nondeterministic
-or parallel-only self-stage crashes.
+The custom `tools/run-llvm-stage5-ocamltest.sh` harness is designed for
+stage-style validation and is slower than the regular testsuite targets. Use it
+when the stage-style environment is needed. For normal installed-compiler work,
+prefer the regular testsuite targets, which can use GNU parallel.
 
 When testing LLVM-backend behavior, prove real LLVM use. The usual check is that
-the wrapper log contains `-x ir` and the fixed-register flags. The stage scripts
-default the log path to `$LLVM_WRAPPER.log`; set `LLVM_WRAPPER_LOG` if using a
-wrapper with a different log path.
+`$LLVM_WRAPPER_LOG` contains `-x ir` and the fixed-register flags.
 
 ```text
 -ffixed-x15 -ffixed-x26 -ffixed-x27 -ffixed-x28
@@ -313,10 +328,11 @@ For backend-generated executable failures, try `_install` first:
 STAGE_INSTALL=$PWD/_install \
 STAGE_BUILD=$PWD/_build \
 NORMAL_BUILD=$PWD/_build \
-FAKE_ROOT=/tmp/oxcaml-stage0-ocamltest-src \
-LIST=/tmp/oxcaml-stage0-frame-list.txt \
+FAKE_ROOT=$FAKE_ROOT \
+LIST=$LIST \
 GENERATE_LIST=0 \
-LLVM_WRAPPER=/tmp/oxcaml-main-clang-wrapper \
+LLVM_WRAPPER=$LLVM_WRAPPER \
+LLVM_WRAPPER_LOG=$LLVM_WRAPPER_LOG \
   tools/run-llvm-stage5-ocamltest.sh
 ```
 

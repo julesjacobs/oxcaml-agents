@@ -27,19 +27,21 @@ Advice:
 - Record the OxCaml PR link in
   `agents/<goal-name>/oxcaml/agent-state/<goal-name>/GOAL.md` and
   `agents/<goal-name>/oxcaml/agent-state/<goal-name>/PROGRESS.md`.
-- When a nested repo `AGENTS.md` says to test or format, do it only when it
-  makes sense for the current step. Full tests can take a long time, so avoid
-  running them while still reducing or investigating a failure. If an
-  instruction says to use `-s`, skip `-s` when command output is needed for
-  debugging.
+- The nested `oxcaml/AGENTS.md` is generic OxCaml guidance. Use it for codebase
+  context and command names. For this workspace, this file overrides it on
+  commits, pushes, progress files, test scope, and whether command output should
+  be silent.
 - Commit real code or test progress. Progress-only commits are allowed only
   when they update `agent-state/<goal-name>/PROGRESS.md`.
 - Push committed progress updates so the current handoff state is visible on
   the agent's GitHub PR.
 - Avoid running multiple `make` or `dune` commands at the same time in the same
   checkout.
-- When testing LLVM-backend behavior, verify real LLVM use by checking
-  `/tmp/oxcaml-clang-wrapper.log` for `-x ir` and the fixed-register flags.
+- Before LLVM-backend work in an agent checkout, run
+  `eval "$(../../../scripts/agent-tmp-env)"`. If you need a clang wrapper, run
+  `eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"`. Use
+  `$LLVM_PATH` and check `$LLVM_WRAPPER_LOG`; do not use a shared wrapper or
+  log.
 - Do not treat the historical `stage4`/`stage5` script names as conceptual
   validation stages. During normal work, use the standard installed compiler
   with `-llvm-backend`; use self-stage2 for full validation unless the

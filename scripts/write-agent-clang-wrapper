@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 [agent-name] <clang-path>" >&2
+  echo "creates a per-agent clang wrapper under /tmp/oxcaml-agent-<agent-name>/" >&2
+  exit 2
+}
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if [ "$#" -eq 1 ]; then
+  clang_path=$1
+  exports=$("$workspace/scripts/agent-tmp-env")
+elif [ "$#" -eq 2 ]; then
+  clang_path=$2
+  exports=$("$workspace/scripts/agent-tmp-env" "$1")
+else
+  usage
+fi
+
+eval "$exports"
+
+if [ ! -x "$clang_path" ]; then
+  echo "clang path is not executable: $clang_path" >&2
+  exit 1
+fi
+
+cat > "$LLVM_WRAPPER" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf "%q " "\$@" >> "$LLVM_WRAPPER_LOG"
+printf "\\n" >> "$LLVM_WRAPPER_LOG"
+exec "$clang_path" "\$@"
+EOF
+
+chmod +x "$LLVM_WRAPPER"
+: > "$LLVM_WRAPPER_LOG"
+
+cat <<EOF
+export OXCAML_AGENT_TMP='$OXCAML_AGENT_TMP'
+export TMPDIR='$TMPDIR'
+export LLVM_WRAPPER='$LLVM_WRAPPER'
+export LLVM_PATH='$LLVM_PATH'
+export LLVM_WRAPPER_LOG='$LLVM_WRAPPER_LOG'
+export FAKE_ROOT='$FAKE_ROOT'
+export LIST='$LIST'
+EOF

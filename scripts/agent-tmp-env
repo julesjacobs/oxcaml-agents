@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 [agent-name]" >&2
+  echo "prints shell exports for per-agent temporary paths" >&2
+  exit 2
+}
+
+[ "$#" -le 1 ] || usage
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if [ "$#" -eq 1 ]; then
+  agent_name=$1
+else
+  case "$PWD/" in
+    "$workspace"/agents/*/*)
+      rest=${PWD#"$workspace"/agents/}
+      agent_name=${rest%%/*}
+      ;;
+    "$workspace"/agents/*)
+      rest=${PWD#"$workspace"/agents/}
+      agent_name=${rest%%/*}
+      ;;
+    *)
+      echo "cannot infer agent name from current directory: $PWD" >&2
+      usage
+      ;;
+  esac
+fi
+
+case "$agent_name" in
+  *[!A-Za-z0-9._-]*|'') usage ;;
+esac
+
+tmp_root="/tmp/oxcaml-agent-$agent_name"
+mkdir -p "$tmp_root/tmp"
+
+cat <<EOF
+export OXCAML_AGENT_TMP='$tmp_root'
+export TMPDIR='$tmp_root/tmp'
+export LLVM_WRAPPER='$tmp_root/clang-wrapper'
+export LLVM_PATH='$tmp_root/clang-wrapper'
+export LLVM_WRAPPER_LOG='$tmp_root/clang-wrapper.log'
+export FAKE_ROOT='$tmp_root/ocamltest-src'
+export LIST='$tmp_root/all-minus-asm-list.txt'
+EOF
