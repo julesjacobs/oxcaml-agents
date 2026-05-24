@@ -17,6 +17,8 @@ esac
 
 workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 agent_dir="$workspace/agents/$agent_name"
+state_rel="agent-state/$agent_name"
+state_dir="$agent_dir/oxcaml/$state_rel"
 base_branch="jujacobs/llvm-backend-integration"
 repo="julesjacobs/oxcaml"
 
@@ -27,8 +29,8 @@ if [ -e "$agent_dir" ]; then
   fi
   echo "using existing $agent_dir"
   echo "Code checkout: $agent_dir/oxcaml"
-  echo "Goal: $agent_dir/GOAL.md"
-  echo "Progress: $agent_dir/PROGRESS.md"
+  echo "Goal: $state_dir/GOAL.md"
+  echo "Progress: $state_dir/PROGRESS.md"
   exit 0
 fi
 
@@ -68,7 +70,55 @@ mkdir -p "$agent_dir"
 git -C "$workspace/main/oxcaml" worktree add -b "$ox_branch" \
   "$agent_dir/oxcaml" "$base_branch"
 
-git -C "$agent_dir/oxcaml" commit --allow-empty -m "Start agent $agent_name"
+mkdir -p "$state_dir"
+
+cat > "$state_dir/GOAL.md" <<EOF
+# Goal
+
+Describe the concrete goal for this agent.
+
+## Scope
+
+- Primary repo: OxCaml monorepo at \`oxcaml/\`
+- Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+- Expected output: TBD
+
+## Branches
+
+- OxCaml: \`$ox_branch\`
+
+## Pull Requests
+
+- OxCaml PR: pending
+EOF
+
+cat > "$state_dir/PROGRESS.md" <<EOF
+# Progress
+
+Last updated: $today.
+
+## Current Claim
+
+Fresh agent workspace created. No claim yet.
+
+## Evidence
+
+- OxCaml branch: \`$ox_branch\`
+- OxCaml PR: pending
+- Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+- Agent state path: \`$state_rel\`
+
+## Current Blocker
+
+Fill in \`$state_rel/GOAL.md\`.
+
+## Next Step
+
+Define the goal, then make the smallest focused change or reproducer.
+EOF
+
+git -C "$agent_dir/oxcaml" add "$state_rel/GOAL.md" "$state_rel/PROGRESS.md"
+git -C "$agent_dir/oxcaml" commit -m "Start agent $agent_name"
 git -C "$agent_dir/oxcaml" push -u origin "$ox_branch"
 
 pr_body=$(mktemp)
@@ -79,6 +129,7 @@ TBD.
 
 Current state:
 - Agent workspace created at \`agents/$agent_name/\`.
+- Agent state is tracked in this branch under \`$state_rel/\`.
 - No code changes yet.
 
 Notes:
@@ -94,7 +145,9 @@ pr_url=$(gh pr create \
   --title "Agent: $agent_name" \
   --body-file "$pr_body")
 
-cat > "$agent_dir/GOAL.md" <<EOF
+initial_commit=$(git -C "$agent_dir/oxcaml" rev-parse --short=12 HEAD)
+
+cat > "$state_dir/GOAL.md" <<EOF
 # Goal
 
 Describe the concrete goal for this agent.
@@ -114,7 +167,7 @@ Describe the concrete goal for this agent.
 - OxCaml PR: $pr_url
 EOF
 
-cat > "$agent_dir/PROGRESS.md" <<EOF
+cat > "$state_dir/PROGRESS.md" <<EOF
 # Progress
 
 Last updated: $today.
@@ -127,31 +180,36 @@ Fresh agent workspace created. No claim yet.
 
 - OxCaml branch: \`$ox_branch\`
 - OxCaml PR: $pr_url
-- Initial PR commit: \`$(git -C "$agent_dir/oxcaml" rev-parse --short=12 HEAD)\`
+- Initial state commit: \`$initial_commit\`
 - Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
+- Agent state path: \`$state_rel\`
 
 ## Current Blocker
 
-Fill in \`GOAL.md\`.
+Fill in \`$state_rel/GOAL.md\`.
 
 ## Next Step
 
 Define the goal, then make the smallest focused change or reproducer.
 EOF
 
+git -C "$agent_dir/oxcaml" add "$state_rel/GOAL.md" "$state_rel/PROGRESS.md"
+git -C "$agent_dir/oxcaml" commit -m "Record agent PR"
+git -C "$agent_dir/oxcaml" push
+
 cat > "$agent_dir/AGENTS.md" <<EOF
 # Agent Instructions
 
-Follow \`GOAL.md\`.
+Follow \`oxcaml/$state_rel/GOAL.md\`.
 
 This directory is \`agents/$agent_name/\`. The code checkout is \`oxcaml/\`.
-Handoff notes for this task go in \`PROGRESS.md\`.
+Handoff notes for this task go in \`oxcaml/$state_rel/PROGRESS.md\`.
 
-Keep \`PROGRESS.md\` compact: current claim, evidence, current blocker, next
-step, branches, commits, and PR links.
+Keep \`oxcaml/$state_rel/PROGRESS.md\` compact: current claim, evidence,
+current blocker, next step, branches, commits, and PR links.
 
-Commit real code or test progress. Do not commit progress-note-only changes
-unless they are part of the same commit as a real change.
+Commit real code or test progress. Progress-only commits are allowed only when
+they update \`$state_rel/PROGRESS.md\`.
 
 Push agent branches to Jules's \`julesjacobs/oxcaml\` fork. Use
 \`julesjacobs/llvm-project\` only for maintaining the LLVM import-source
@@ -173,7 +231,7 @@ When testing LLVM-backend behavior, verify real LLVM use by checking
 Do not treat the historical \`stage4\`/\`stage5\` script names as conceptual
 validation stages. During normal work, iterate with the standard installed
 compiler and \`-llvm-backend\`. Use self-stage2 for full validation unless
-\`GOAL.md\` says otherwise.
+\`oxcaml/$state_rel/GOAL.md\` says otherwise.
 
 If a self-stage or stage2 failure appears, first try to reduce it to a focused
 test case that already fails with the standard compiler using \`-llvm-backend\`.
@@ -184,4 +242,6 @@ EOF
 echo "created $agent_dir"
 echo "OxCaml branch: $ox_branch"
 echo "OxCaml PR: $pr_url"
+echo "Goal: $state_dir/GOAL.md"
+echo "Progress: $state_dir/PROGRESS.md"
 echo "Vendored LLVM path: $agent_dir/oxcaml/vendor/llvm-project"

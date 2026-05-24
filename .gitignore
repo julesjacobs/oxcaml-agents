@@ -3,9 +3,10 @@
 /main/oxcaml/
 /main/llvm-project/
 
-# Agent worktrees are generated locally by scripts/create-agent.
-/agents/*/oxcaml/
-/agents/*/llvm-project/
+# Agent directories are generated locally by scripts/use-or-create-agent.
+# Canonical per-agent state lives in each OxCaml branch under agent-state/.
+/agents/*
+!/agents/.gitkeep
 
 # Build and editor noise.
 .DS_Store

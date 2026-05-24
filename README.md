@@ -23,19 +23,23 @@ on one branch and one PR.
   agents/
     <goal-name>/
       oxcaml/
+        agent-state/
+          <goal-name>/
+            GOAL.md
+            PROGRESS.md
         vendor/
           llvm-project/
       AGENTS.md
-      GOAL.md
-      PROGRESS.md
 ```
 
 `main/` is the known-good integration checkout. It should stay clean and track
 the current personal integration branch.
 
-`agents/<goal-name>/` is where one agent works on one concrete goal. The local
-`GOAL.md` decides whether that agent may edit OxCaml sources, vendored LLVM
-sources under `oxcaml/vendor/llvm-project`, or both.
+`agents/<goal-name>/` is where one agent works on one concrete goal. The
+canonical goal file is
+`agents/<goal-name>/oxcaml/agent-state/<goal-name>/GOAL.md`. It decides whether
+that agent may edit OxCaml sources, vendored LLVM sources under
+`oxcaml/vendor/llvm-project`, or both.
 
 `main/llvm-project` may exist as an import source for future vendored LLVM
 baseline updates. Do not create new agent worktrees from it. The OxCaml
@@ -52,7 +56,7 @@ Use this command from the workspace root:
 If `agents/<agent-name>/` already exists, the command prints its paths. If it
 does not exist, the command creates it with branch `jujacobs/<agent-name>`,
 pushes that branch to `julesjacobs/oxcaml`, opens a draft OxCaml PR, and records
-the PR link in the agent files.
+the PR link in the agent state files.
 
 Work in:
 
@@ -60,8 +64,10 @@ Work in:
 agents/<agent-name>/oxcaml/
 ```
 
-The task definition is `agents/<agent-name>/GOAL.md`. Handoff notes for that
-agent go in `agents/<agent-name>/PROGRESS.md`.
+The task definition is
+`agents/<agent-name>/oxcaml/agent-state/<agent-name>/GOAL.md`. Handoff notes
+for that agent go in
+`agents/<agent-name>/oxcaml/agent-state/<agent-name>/PROGRESS.md`.
 
 ## Branches
 
@@ -77,8 +83,8 @@ jujacobs/llvm-statepoint-frame-table-contract
 
 Do not use branches named `codex/...`.
 
-Agents should branch from the personal integration branch unless `GOAL.md` says
-otherwise. A typical flow is:
+Agents should branch from the personal integration branch unless their
+canonical goal file says otherwise. A typical flow is:
 
 ```text
 jujacobs/llvm-tail-call-domainstate-results
@@ -86,7 +92,7 @@ jujacobs/llvm-tail-call-domainstate-results
 ```
 
 The integration branch is updated deliberately. Agents should not merge their
-own work into it unless their `GOAL.md` explicitly says to do so.
+own work into it unless their canonical goal file explicitly says to do so.
 
 ## Pull Requests
 
@@ -130,15 +136,16 @@ LLVM backend path and toolchain were actually exercised.
 
 Each agent directory has:
 
-- `agents/<goal-name>/GOAL.md`: the current task, scope, editable paths, and
-  expected output, plus the OxCaml PR link.
-- `agents/<goal-name>/PROGRESS.md`: compact handoff notes for that agent.
+- `agents/<goal-name>/oxcaml/agent-state/<goal-name>/GOAL.md`: the current
+  task, scope, editable paths, and expected output, plus the OxCaml PR link.
+- `agents/<goal-name>/oxcaml/agent-state/<goal-name>/PROGRESS.md`: compact
+  handoff notes for that agent.
 - `agents/<goal-name>/AGENTS.md`: local instructions for that agent.
 - `agents/<goal-name>/oxcaml/`: the agent's OxCaml checkout and code working
   directory.
 
-Keep `agents/<goal-name>/PROGRESS.md` short, usually one or two pages. It
-should contain:
+Keep `agents/<goal-name>/oxcaml/agent-state/<goal-name>/PROGRESS.md` short,
+usually one or two pages. It should contain:
 
 - Current claim.
 - Evidence: commands, exact results, and important log paths.
@@ -146,8 +153,9 @@ should contain:
 - Next step.
 - Active branches, commits, and PR links.
 
-Delete stale history from `agents/<goal-name>/PROGRESS.md`. It is a handoff
-file, not a diary.
+Delete stale history from
+`agents/<goal-name>/oxcaml/agent-state/<goal-name>/PROGRESS.md`. It is a
+handoff file, not a diary.
 
 ## Agent Directory Creation
 
@@ -168,13 +176,17 @@ This creates:
 ```text
 agents/llvm-stack-checks/
   oxcaml/        # branch jujacobs/llvm-stack-checks
+    agent-state/
+      llvm-stack-checks/
+        GOAL.md
+        PROGRESS.md
   AGENTS.md
-  GOAL.md
-  PROGRESS.md
 ```
 
 It also pushes `jujacobs/llvm-stack-checks`, opens a draft PR in
-`julesjacobs/oxcaml`, and records the PR link in `GOAL.md` and `PROGRESS.md`.
+`julesjacobs/oxcaml`, and records the PR link in
+`oxcaml/agent-state/llvm-stack-checks/GOAL.md` and
+`oxcaml/agent-state/llvm-stack-checks/PROGRESS.md`.
 
 The agent's LLVM edit location is
 `agents/llvm-stack-checks/oxcaml/vendor/llvm-project`.
@@ -240,8 +252,8 @@ Current useful timings on this machine:
 
 ## Commit Policy
 
-Commit real code or test progress. Do not make progress-note-only commits unless
-the notes are part of the same commit as a real change.
+Commit real code or test progress. Progress-only commits are allowed only for
+`agent-state/<goal-name>/PROGRESS.md`.
 
 Experiments may live on experiment branches, for example:
 
@@ -262,7 +274,7 @@ GitHub review comments on their active PR.
 
 Agents must verify review comments locally before changing code. Do not blindly
 accept comments from review agents. If a comment is rejected, record the reason
-briefly in `PROGRESS.md`.
+briefly in the agent's canonical progress file.
 
 ## Testing Rules
 
@@ -288,9 +300,9 @@ are valuable, but they are expensive and harder to debug when they fail.
 If a self-stage or stage2 test fails, first try to reduce it to a focused test
 case that already fails with the standard compiler using `-llvm-backend`. That
 is the normal debugging target. If the failure only reproduces with
-self-stage2, record that fact in `PROGRESS.md`, keep the smallest self-stage2
-reproducer you found, and explain why the standard `-llvm-backend` compiler
-does not cover it.
+self-stage2, record that fact in the agent's canonical progress file, keep the
+smallest self-stage2 reproducer you found, and explain why the standard
+`-llvm-backend` compiler does not cover it.
 
 For backend-generated executable failures, try `_install` first:
 
