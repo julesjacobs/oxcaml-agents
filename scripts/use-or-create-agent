@@ -2,15 +2,14 @@
 set -eu
 
 usage() {
-  echo "usage: $0 <agent-name> [branch-suffix]" >&2
-  echo "example: $0 tail-calls llvm-tail-call-domainstate-results" >&2
+  echo "usage: $0 <agent-name>" >&2
+  echo "example: $0 tail-calls" >&2
   exit 2
 }
 
-[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+[ "$#" -eq 1 ] || usage
 
 agent_name=$1
-branch_suffix=${2:-}
 
 case "$agent_name" in
   *[!A-Za-z0-9._-]*|'') usage ;;
@@ -31,21 +30,7 @@ if [ -e "$agent_dir" ]; then
   exit 0
 fi
 
-if [ -z "$branch_suffix" ]; then
-  echo "agent directory does not exist: $agent_dir" >&2
-  echo "pass branch-suffix to create it" >&2
-  usage
-fi
-
-case "$branch_suffix" in
-  jujacobs/*)
-    echo "pass branch suffix without the jujacobs/ prefix" >&2
-    exit 2
-    ;;
-  *[!A-Za-z0-9._/-]*|'') usage ;;
-esac
-
-ox_branch="jujacobs/$branch_suffix"
+ox_branch="jujacobs/$agent_name"
 today=$(date +%F)
 
 if [ ! -d "$workspace/main/oxcaml/vendor/llvm-project" ]; then

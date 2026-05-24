@@ -46,11 +46,11 @@ monorepo is the review and PR unit.
 Use this command from the workspace root:
 
 ```sh
-./scripts/use-or-create-agent <agent-name> [branch-suffix]
+./scripts/use-or-create-agent <agent-name>
 ```
 
 If `agents/<agent-name>/` already exists, the command prints its paths. If it
-does not exist, pass `branch-suffix` and the command creates it.
+does not exist, the command creates it with branch `jujacobs/<agent-name>`.
 
 Work in:
 
@@ -151,19 +151,19 @@ file, not a diary.
 Use the helper script from the workspace root:
 
 ```sh
-./scripts/use-or-create-agent <agent-name> <branch-suffix>
+./scripts/use-or-create-agent <agent-name>
 ```
 
 Example:
 
 ```sh
-./scripts/use-or-create-agent stack-checks llvm-stack-checks
+./scripts/use-or-create-agent llvm-stack-checks
 ```
 
 This creates:
 
 ```text
-agents/stack-checks/
+agents/llvm-stack-checks/
   oxcaml/        # branch jujacobs/llvm-stack-checks
   AGENTS.md
   GOAL.md
@@ -171,7 +171,7 @@ agents/stack-checks/
 ```
 
 The agent's LLVM edit location is
-`agents/stack-checks/oxcaml/vendor/llvm-project`.
+`agents/llvm-stack-checks/oxcaml/vendor/llvm-project`.
 
 The helper was smoke-tested by creating two agent worktrees from `main/`; those
 smoke worktrees have been removed.

@@ -3,9 +3,9 @@
 This workspace coordinates multiple agents working on the OxCaml LLVM backend.
 
 Start from the workspace root with
-`scripts/use-or-create-agent <agent-name> [branch-suffix]`. It prints the
-existing agent paths when `agents/<agent-name>/` exists, or creates that agent
-when a branch suffix is provided.
+`scripts/use-or-create-agent <agent-name>`. It prints the existing agent paths
+when `agents/<agent-name>/` exists, or creates that agent with branch
+`jujacobs/<agent-name>` when it does not.
 
 Inside an agent directory, `GOAL.md` decides whether the agent may edit OxCaml
 sources, vendored LLVM sources under `oxcaml/vendor/llvm-project`, or both. The

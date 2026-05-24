@@ -3,8 +3,8 @@
 This directory is the known-good integration checkout.
 
 Do not do exploratory work here. Start agent work from the workspace root with
-`scripts/use-or-create-agent <agent-name> [branch-suffix]`, then work in the
-agent directory it prints.
+`scripts/use-or-create-agent <agent-name>`, then work in the agent directory it
+prints.
 
 The expected branches are:
 
