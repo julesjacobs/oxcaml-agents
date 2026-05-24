@@ -34,6 +34,8 @@ Advice:
   debugging.
 - Commit real code or test progress. Progress-only commits are allowed only
   when they update `agent-state/<goal-name>/PROGRESS.md`.
+- Push committed progress updates so the current handoff state is visible on
+  the agent's GitHub PR.
 - Avoid running multiple `make` or `dune` commands at the same time in the same
   checkout.
 - When testing LLVM-backend behavior, verify real LLVM use by checking

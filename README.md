@@ -255,6 +255,9 @@ Current useful timings on this machine:
 Commit real code or test progress. Progress-only commits are allowed only for
 `agent-state/<goal-name>/PROGRESS.md`.
 
+Push committed progress updates to the agent branch so the current handoff
+state is visible on the GitHub PR.
+
 Experiments may live on experiment branches, for example:
 
 ```text

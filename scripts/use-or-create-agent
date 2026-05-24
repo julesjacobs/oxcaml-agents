@@ -210,6 +210,8 @@ current blocker, next step, branches, commits, and PR links.
 
 Commit real code or test progress. Progress-only commits are allowed only when
 they update \`$state_rel/PROGRESS.md\`.
+Push committed progress updates so the current handoff state is visible on the
+GitHub PR.
 
 Push agent branches to Jules's \`julesjacobs/oxcaml\` fork. Use
 \`julesjacobs/llvm-project\` only for maintaining the LLVM import-source
