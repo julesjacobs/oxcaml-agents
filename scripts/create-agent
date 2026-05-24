@@ -31,6 +31,7 @@ today=$(date +%F)
 
 if [ -e "$agent_dir" ]; then
   echo "agent directory already exists: $agent_dir" >&2
+  echo "use that directory if it matches the task, or choose a different agent-name" >&2
   exit 1
 fi
 
@@ -98,6 +99,9 @@ cat > "$agent_dir/AGENTS.md" <<EOF
 # Agent Instructions
 
 Follow \`GOAL.md\`.
+
+This directory is \`agents/$agent_name/\`. The code checkout is \`oxcaml/\`.
+Handoff notes for this task go in \`PROGRESS.md\`.
 
 Keep \`PROGRESS.md\` compact: current claim, evidence, current blocker, next
 step, branches, commits, and PR links.

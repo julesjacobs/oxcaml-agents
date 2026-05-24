@@ -3,7 +3,9 @@
 This directory is the known-good integration checkout.
 
 Do not do exploratory work here. Use `../scripts/create-agent` to create a
-per-goal agent directory and work there.
+per-goal agent directory and work there. Before creating one, check whether an
+existing `../agents/<goal-name>/` already matches the task; if it does, use
+that directory instead.
 
 The expected branches are:
 

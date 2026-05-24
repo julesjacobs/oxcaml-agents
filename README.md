@@ -41,6 +41,27 @@ sources under `oxcaml/vendor/llvm-project`, or both.
 baseline updates. Do not create new agent worktrees from it. The OxCaml
 monorepo is the review and PR unit.
 
+## Choosing an Agent Directory
+
+Before creating a new agent directory, check `agents/` for an existing
+directory that already matches the requested task. If one exists, work in that
+directory and follow its `GOAL.md`.
+
+If no existing agent directory matches, create one from the workspace root:
+
+```sh
+./scripts/create-agent <agent-name> <branch-suffix>
+```
+
+After that, work in:
+
+```text
+agents/<agent-name>/oxcaml/
+```
+
+The task definition is `agents/<agent-name>/GOAL.md`. Handoff notes for that
+agent go in `agents/<agent-name>/PROGRESS.md`.
+
 ## Branches
 
 Use branches in Jules's personal fork, not upstream repositories.
@@ -107,11 +128,15 @@ LLVM backend path and toolchain were actually exercised.
 
 Each agent directory has:
 
-- `GOAL.md`: the current task, scope, editable paths, and expected output.
-- `PROGRESS.md`: compact handoff notes.
-- `AGENTS.md`: local instructions for that agent.
+- `agents/<goal-name>/GOAL.md`: the current task, scope, editable paths, and
+  expected output.
+- `agents/<goal-name>/PROGRESS.md`: compact handoff notes for that agent.
+- `agents/<goal-name>/AGENTS.md`: local instructions for that agent.
+- `agents/<goal-name>/oxcaml/`: the agent's OxCaml checkout and code working
+  directory.
 
-Keep `PROGRESS.md` short, usually one or two pages. It should contain:
+Keep `agents/<goal-name>/PROGRESS.md` short, usually one or two pages. It
+should contain:
 
 - Current claim.
 - Evidence: commands, exact results, and important log paths.
@@ -119,11 +144,13 @@ Keep `PROGRESS.md` short, usually one or two pages. It should contain:
 - Next step.
 - Active branches, commits, and PR links.
 
-Delete stale history from `PROGRESS.md`. It is a handoff file, not a diary.
+Delete stale history from `agents/<goal-name>/PROGRESS.md`. It is a handoff
+file, not a diary.
 
 ## Creating Agent Directories
 
-Use the helper script from the workspace root:
+Use the helper script from the workspace root, after checking that no existing
+`agents/<goal-name>/` already matches the task:
 
 ```sh
 ./scripts/create-agent <agent-name> <branch-suffix>
