@@ -48,8 +48,9 @@ Advice:
   scripts write `duneconf/*.ws` files that inject
   `OCAMLPARAM=_,llvm-backend=1,llvm-path=...`; a later plain `make install`
   can accidentally reuse those workspaces and produce an LLVM-built `_install`.
-  Before building the native comparison compiler, remove `_build`, `_install`,
-  and `duneconf/{boot,runtime_stdlib,main}.ws`, then run
+  Before building the native comparison compiler, use
+  `tools/build-clean-native-install.sh` when it exists. Otherwise remove
+  `_build`, `_install`, and `duneconf/{boot,runtime_stdlib,main}.ws`, then run
   `make install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=`.
   Before trusting a native-vs-LLVM benchmark, check `_build/log` says
   `OCAMLPARAM: ""` or `OCAMLPARAM: unset`, check the LLVM self-stage log has
