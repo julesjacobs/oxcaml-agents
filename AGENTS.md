@@ -44,6 +44,19 @@ Advice:
   `eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"`. Use
   `$LLVM_PATH` and check `$LLVM_WRAPPER_LOG`; do not use a shared wrapper or
   log.
+- Keep native and LLVM-backend builds explicitly separated. LLVM self-stage
+  scripts write `duneconf/*.ws` files that inject
+  `OCAMLPARAM=_,llvm-backend=1,llvm-path=...`; a later plain `make install`
+  can accidentally reuse those workspaces and produce an LLVM-built `_install`.
+  Before building the native comparison compiler, remove `_build`, `_install`,
+  and `duneconf/{boot,runtime_stdlib,main}.ws`, then run
+  `make install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=`.
+  Before trusting a native-vs-LLVM benchmark, check `_build/log` says
+  `OCAMLPARAM: ""` or `OCAMLPARAM: unset`, check the LLVM self-stage log has
+  fresh IR/wrapper activity, and record `shasum`/sizes for both timed compiler
+  executables. Benchmark harnesses should fail fast if the native build log
+  contains `llvm-backend=1` or if both timed compiler paths resolve to the same
+  file.
 - Do not treat the historical `stage4`/`stage5` script names as conceptual
   validation stages. During normal work, use the standard installed compiler
   with `-llvm-backend`; use self-stage2 for full validation unless the
