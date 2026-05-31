@@ -73,6 +73,33 @@ Work in:
 agents/<agent-name>/oxcaml/
 ```
 
+Configure the checkout before building anything LLVM-related:
+
+```sh
+./scripts/configure-agent-oxcaml --clean <agent-name>
+```
+
+This configures `agents/<agent-name>/oxcaml` with:
+
+```sh
+./configure --enable-frame-pointers --prefix="$PWD/_install"
+```
+
+The local prefix matters. If the checkout is configured with the default
+`/usr/local` prefix, the installed compiler reports `/usr/local/lib/ocaml` as
+its standard library. That can make Dune's `CamlinternalQuote` probe compile a
+second incompatible copy of `CamlinternalQuote`, producing digest errors before
+the LLVM backend is tested.
+
+Build the local native stage-0 install with:
+
+```sh
+make _install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=
+```
+
+Use `_install` here, not `make install`: the configured prefix is already the
+local `_install`, so the final copy step is unnecessary.
+
 The task definition is
 `agents/<agent-name>/oxcaml/agent-state/<agent-name>/GOAL.md`. Handoff notes
 for that agent go in
@@ -96,7 +123,7 @@ clang path from inside `oxcaml/` is `../llvm-build/bin/clang`.
 For normal build commands, pass the local clang directly:
 
 ```sh
-LLVM_PATH=$PWD/../llvm-build/bin/clang make install LLVM_BACKEND=1
+LLVM_PATH=$PWD/../llvm-build/bin/clang make _install LLVM_BACKEND=1
 ```
 
 If you need wrapper logs for validation evidence:
@@ -109,6 +136,18 @@ Then pass `LLVM_PATH=$PWD/../clang-wrapper` to the command you are auditing.
 Check `../clang-wrapper.target` and `../clang-wrapper.log` to prove which clang
 was used. Do not use `/usr/bin/clang`, a shared wrapper, or another agent's LLVM
 build for LLVM-backend work.
+
+For self-stage repros, prefer the script entrypoint after building the native
+stage-0 `_install`:
+
+```sh
+STAGE0_INSTALL="$PWD/_install" \
+LLVM_WRAPPER="$PWD/../clang-wrapper" \
+tools/build-llvm-self-stage-install.sh
+```
+
+This keeps the stage-0 install, LLVM boot build, and self-stage install in
+separate directories.
 
 ## Branches
 
@@ -351,6 +390,11 @@ is the normal debugging target. If the failure only reproduces with
 self-stage2, record that fact in the agent's canonical progress file, keep the
 smallest self-stage2 reproducer you found, and explain why the standard
 `-llvm-backend` compiler does not cover it.
+
+For self-stage compiler crashes, first reduce from `_llvm_*_build/log` to one
+compiler invocation. When replaying stdlib compiles, keep the original output
+basename such as `stdlib__Map.cmx`; changing the basename changes the expected
+module name and can turn the real crash into a misleading module-name error.
 
 For backend-generated executable failures, try `_install` first:
 

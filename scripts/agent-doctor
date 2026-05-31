@@ -45,9 +45,14 @@ check_agent() {
   branch=$(git -C "$oxcaml_dir" branch --show-current 2>/dev/null || true)
   head=$(git -C "$oxcaml_dir" rev-parse --short=12 HEAD 2>/dev/null || true)
   dirty=$(git -C "$oxcaml_dir" status --porcelain 2>/dev/null || true)
+  expected_branch="jujacobs/$agent_name"
 
   echo "checkout: $oxcaml_dir"
   echo "branch: ${branch:-detached}"
+  if [ -n "$branch" ] && [ "$branch" != "$expected_branch" ]; then
+    echo "WARN: expected branch $expected_branch"
+    ok=0
+  fi
   echo "head: ${head:-unknown}"
   if [ -n "$dirty" ]; then
     echo "dirty: yes"
@@ -79,18 +84,91 @@ check_agent() {
 
   if [ -x "$agent_dir/llvm-build/bin/clang" ]; then
     echo "llvm clang: $agent_dir/llvm-build/bin/clang"
+    clang_version=$("$agent_dir/llvm-build/bin/clang" --version 2>/dev/null | sed -n '1p' || true)
+    case "$clang_version" in
+      *"Apple clang"*)
+        echo "WARN: agent clang appears to be Apple clang"
+        echo "      expected custom LLVM clang under $agent_dir/llvm-build"
+        ok=0
+        ;;
+    esac
   else
     echo "llvm clang: missing $agent_dir/llvm-build/bin/clang"
+    ok=0
   fi
 
   if [ -f "$agent_dir/clang-wrapper.target" ]; then
     echo "wrapper target:"
     sed 's/^/  /' "$agent_dir/clang-wrapper.target"
+    wrapper_clang=$(awk -F= '$1 == "clang" { print $2; exit }' "$agent_dir/clang-wrapper.target")
+    expected_clang=$(CDPATH= cd -- "$agent_dir/llvm-build/bin" 2>/dev/null && pwd -P || true)
+    if [ -n "$expected_clang" ]; then
+      expected_clang="$expected_clang/clang"
+      if [ "$wrapper_clang" != "$expected_clang" ]; then
+        echo "WARN: wrapper clang is $wrapper_clang"
+        echo "      expected $expected_clang"
+        ok=0
+      fi
+    fi
   elif [ -e "$agent_dir/clang-wrapper" ]; then
     echo "WARN: wrapper exists but target file is missing"
     ok=0
   else
     echo "wrapper: absent"
+  fi
+
+  expected_prefix="$oxcaml_dir/_install"
+  expected_stdlib="$expected_prefix/lib/ocaml"
+
+  if [ -f "$oxcaml_dir/Makefile.config" ]; then
+    prefix=$(awk -F= '$1 == "prefix" { print $2; exit }' "$oxcaml_dir/Makefile.config")
+    frame_pointers=$(awk -F= '$1 == "WITH_FRAME_POINTERS" { print $2; exit }' "$oxcaml_dir/Makefile.config")
+
+    if [ "$prefix" = "$expected_prefix" ]; then
+      echo "configure prefix: $prefix"
+    else
+      echo "WARN: configure prefix is $prefix"
+      echo "      expected local prefix $expected_prefix"
+      echo "      run scripts/configure-agent-oxcaml --clean $agent_name"
+      ok=0
+    fi
+
+    if [ "$frame_pointers" = "true" ]; then
+      echo "frame pointers: enabled"
+    else
+      echo "WARN: frame pointers are not enabled"
+      echo "      LLVM_BACKEND=1 builds require ./configure --enable-frame-pointers"
+      ok=0
+    fi
+  else
+    echo "configure: missing Makefile.config"
+  fi
+
+  if [ -x "$oxcaml_dir/_install/bin/ocamlc.opt" ]; then
+    stdlib=$("$oxcaml_dir/_install/bin/ocamlc.opt" -config 2>/dev/null \
+      | awk -F': ' '$1 == "standard_library" { print $2; exit }' || true)
+    if [ "$stdlib" = "$expected_stdlib" ]; then
+      echo "installed stdlib: $stdlib"
+    else
+      echo "WARN: installed compiler standard_library is ${stdlib:-unknown}"
+      echo "      expected $expected_stdlib"
+      echo "      rebuild _install after scripts/configure-agent-oxcaml --clean $agent_name"
+      ok=0
+    fi
+  else
+    echo "installed compiler: absent"
+  fi
+
+  stale_ws=
+  for ws in "$oxcaml_dir"/duneconf/boot.ws "$oxcaml_dir"/duneconf/runtime_stdlib.ws "$oxcaml_dir"/duneconf/main.ws; do
+    [ -e "$ws" ] || continue
+    stale_ws="${stale_ws}${ws}
+"
+  done
+  if [ -n "$stale_ws" ]; then
+    echo "WARN: stage workspace files are present:"
+    printf '%s' "$stale_ws" | sed 's/^/  /'
+    echo "      remove them before a plain native build, or run scripts/configure-agent-oxcaml --clean $agent_name"
   fi
 
   echo

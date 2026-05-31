@@ -1,0 +1,106 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 [--clean] [agent-name] [-- <extra configure args>]" >&2
+  echo "configures an agent checkout with a local _install prefix and frame pointers" >&2
+  exit 2
+}
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+clean=0
+agent_name=
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --clean)
+      clean=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      usage
+      ;;
+    *)
+      if [ -n "$agent_name" ]; then
+        usage
+      fi
+      agent_name=$1
+      shift
+      ;;
+  esac
+done
+
+if [ -n "$agent_name" ]; then
+  exports=$("$workspace/scripts/agent-tmp-env" "$agent_name")
+else
+  exports=$("$workspace/scripts/agent-tmp-env")
+fi
+eval "$exports"
+
+oxcaml_dir="$OXCAML_AGENT_DIR/oxcaml"
+prefix="$oxcaml_dir/_install"
+
+if [ ! -d "$oxcaml_dir" ]; then
+  echo "missing agent checkout: $oxcaml_dir" >&2
+  exit 1
+fi
+
+if [ "$clean" -eq 1 ]; then
+  rm -rf \
+    "$oxcaml_dir/_build" \
+    "$oxcaml_dir/_install" \
+    "$oxcaml_dir/_local_prefix" \
+    "$oxcaml_dir/_llvm_boot_context_build" \
+    "$oxcaml_dir/_llvm_boot_install" \
+    "$oxcaml_dir/_llvm_self_stage_runtime_build" \
+    "$oxcaml_dir/_llvm_self_stage_main_build" \
+    "$oxcaml_dir/_llvm_self_stage_install" \
+    "$oxcaml_dir/_llvm_self_stage2_boot_context_build" \
+    "$oxcaml_dir/_llvm_self_stage2_boot_install" \
+    "$oxcaml_dir/_llvm_self_stage2_runtime_build" \
+    "$oxcaml_dir/_llvm_self_stage2_main_build" \
+    "$oxcaml_dir/_llvm_self_stage2_install" \
+    "$oxcaml_dir/duneconf/boot.ws" \
+    "$oxcaml_dir/duneconf/runtime_stdlib.ws" \
+    "$oxcaml_dir/duneconf/main.ws"
+fi
+
+cd "$oxcaml_dir"
+
+if [ ! -x ./configure ]; then
+  autoconf
+fi
+
+./configure --enable-frame-pointers --prefix="$prefix" "$@"
+
+configured_prefix=$(awk -F= '$1 == "prefix" { print $2; exit }' Makefile.config)
+with_frame_pointers=$(awk -F= '$1 == "WITH_FRAME_POINTERS" { print $2; exit }' Makefile.config)
+
+if [ "$configured_prefix" != "$prefix" ]; then
+  echo "unexpected configure prefix: $configured_prefix" >&2
+  echo "expected: $prefix" >&2
+  exit 1
+fi
+
+if [ "$with_frame_pointers" != "true" ]; then
+  echo "expected WITH_FRAME_POINTERS=true in Makefile.config" >&2
+  exit 1
+fi
+
+cat <<EOF
+configured agent checkout:
+  $oxcaml_dir
+
+local install prefix:
+  $prefix
+
+next native stage-0 command:
+  make _install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=
+
+next LLVM self-stage command, after creating the wrapper:
+  STAGE0_INSTALL="\$PWD/_install" LLVM_WRAPPER="\$PWD/../clang-wrapper" tools/build-llvm-self-stage-install.sh
+EOF

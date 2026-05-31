@@ -95,10 +95,31 @@ The private local LLVM paths for this agent are:
 - wrapper target: \`clang-wrapper.target\`
 - wrapper log: \`clang-wrapper.log\`
 
+Before LLVM-backend builds, configure the checkout from the workspace root with
+\`scripts/configure-agent-oxcaml --clean <agent-name>\`, or with
+\`../../../scripts/configure-agent-oxcaml --clean\` from inside \`oxcaml/\`.
+This uses a local \`_install\` prefix and enables frame pointers.
+
+Build the native stage-0 compiler from \`oxcaml/\` with:
+
+\`\`\`sh
+make _install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=
+\`\`\`
+
 From \`oxcaml/\`, pass \`LLVM_PATH=\$PWD/../llvm-build/bin/clang\` to commands
 that need the custom clang. If wrapper logs are needed, run
 \`../../../scripts/write-agent-clang-wrapper ../llvm-build/bin/clang\`, then
 pass \`LLVM_PATH=\$PWD/../clang-wrapper\`.
+
+For self-stage repros, prefer:
+
+\`\`\`sh
+STAGE0_INSTALL="\$PWD/_install" LLVM_WRAPPER="\$PWD/../clang-wrapper" tools/build-llvm-self-stage-install.sh
+\`\`\`
+
+After any long build or failed repro, run \`../../../scripts/agent-doctor\`
+before handing off. It checks branch shape, local prefix, frame pointers, the
+installed stdlib path, and the private LLVM wrapper target.
 EOF
 }
 

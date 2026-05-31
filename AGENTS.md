@@ -43,6 +43,15 @@ Advice:
 - Use `scripts/agent-doctor [agent-name]` when an agent path, branch, state
   file, or LLVM helper path looks suspicious. Fix the reported mismatch before
   starting long builds or tests.
+- Configure agent checkouts with a local install prefix before LLVM-backend
+  work:
+  `scripts/configure-agent-oxcaml --clean <agent-name>`. This runs
+  `./configure --enable-frame-pointers --prefix=$agent/oxcaml/_install` in the
+  agent checkout. Do not configure an agent with the default `/usr/local`
+  prefix: the installed compiler will then report `/usr/local/lib/ocaml` as its
+  standard library, Dune's `CamlinternalQuote` probe can pick the wrong library,
+  and boot/self-stage builds can fail with inconsistent interface digests before
+  reaching the actual LLVM issue.
 - An agent should be able to work from its private checkout without knowing the
   surrounding workspace. Keep that agent's custom LLVM build beside the checkout
   at `../llvm-build`, with clang at `../llvm-build/bin/clang`. Pass
@@ -57,13 +66,25 @@ Advice:
   scripts write `duneconf/*.ws` files that inject
   `OCAMLPARAM=_,llvm-backend=1,llvm-path=...`; a later plain `make install`
   can accidentally reuse those workspaces and produce an LLVM-built `_install`.
-  Before building the native comparison compiler, use
+  The local stage-0 compiler for LLVM self-stage should be built with
+  `make _install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=`
+  after `scripts/configure-agent-oxcaml --clean <agent-name>`. Use the
+  `_install` target rather than `make install` for this local setup; `make
+  install` also copies `_install` to the configured prefix, which is redundant
+  when the configured prefix is already `_install`. For self-stage repros,
+  prefer
+  `STAGE0_INSTALL="$PWD/_install" LLVM_WRAPPER="$PWD/../clang-wrapper" tools/build-llvm-self-stage-install.sh`
+  after creating the agent wrapper; it keeps the stage-0 install, LLVM boot
+  build, and self-stage install in separate directories. Before building the
+  native comparison compiler, use
   `tools/build-clean-native-install.sh` when it exists. It saves the clean
   compiler under `_native_install` and its build tree under `_native_build`, so
   later LLVM work can overwrite `_build`/`_install` without losing the native
   comparison compiler. Otherwise remove `_build`, `_install`, and
   `duneconf/{boot,runtime_stdlib,main}.ws`, then run
-  `make install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=`.
+  `scripts/configure-agent-oxcaml --clean <agent-name>` from the workspace root
+  and `make _install LLVM_BOOT_BACKEND=0 LLVM_BACKEND=0 OCAMLPARAM= BUILD_OCAMLPARAM=`
+  from the agent checkout.
   Before trusting a native-vs-LLVM benchmark, check `_build/log` says
   `OCAMLPARAM: ""` or `OCAMLPARAM: unset`, check the LLVM self-stage log has
   fresh IR/wrapper activity, and record `shasum`/sizes for both timed compiler
@@ -78,4 +99,10 @@ Advice:
   already fails with the standard compiler using `-llvm-backend`. If it only
   reproduces with self-stage2, record the smallest self-stage2 reproducer and
   why the standard `-llvm-backend` compiler does not cover it.
+- For self-stage compiler crashes, reduce from `_llvm_*_build/log` to one
+  compiler invocation before debugging the whole build. Keep the original
+  output basename when replaying stdlib module compiles: `ocamlopt.opt` uses
+  the `-o` basename as the expected module name, so changing
+  `stdlib__Map.cmx` to another basename can hide the real crash behind a
+  module-name error.
 - Before acting on GitHub review comments, verify that the comment is correct.
