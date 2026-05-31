@@ -22,15 +22,92 @@ state_dir="$agent_dir/oxcaml/$state_rel"
 base_branch="jujacobs/llvm-backend-integration"
 repo="julesjacobs/oxcaml"
 
+print_agent_paths() {
+  dir=$1
+  name=$2
+
+  if [ ! -d "$dir/oxcaml" ]; then
+    echo "agent exists but has no OxCaml checkout: $dir/oxcaml" >&2
+    return 1
+  fi
+
+  if ! git -C "$dir/oxcaml" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "agent checkout is not a git worktree: $dir/oxcaml" >&2
+    return 1
+  fi
+
+  top=$(git -C "$dir/oxcaml" rev-parse --show-toplevel)
+  top_real=$(CDPATH= cd -- "$top" && pwd -P)
+  oxcaml_real=$(CDPATH= cd -- "$dir/oxcaml" && pwd -P)
+  if [ "$top_real" != "$oxcaml_real" ]; then
+    echo "agent checkout is inside another git repo, not its own worktree: $dir/oxcaml" >&2
+    echo "git top-level: $top_real" >&2
+    return 1
+  fi
+
+  branch=$(git -C "$dir/oxcaml" branch --show-current 2>/dev/null || true)
+
+  echo "using existing $dir"
+  echo "Code checkout: $dir/oxcaml"
+  if [ -n "$branch" ]; then
+    echo "Branch: $branch"
+  fi
+
+  expected_state="$dir/oxcaml/agent-state/$name"
+  if [ -d "$expected_state" ]; then
+    echo "State: $expected_state"
+    [ -e "$expected_state/GOAL.md" ] && echo "Goal: $expected_state/GOAL.md" || echo "Goal: missing $expected_state/GOAL.md" >&2
+    [ -e "$expected_state/PROGRESS.md" ] && echo "Progress: $expected_state/PROGRESS.md" || echo "Progress: missing $expected_state/PROGRESS.md" >&2
+  else
+    found_state=$(find "$dir/oxcaml/agent-state" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | sed -n '1p' || true)
+    if [ -n "$found_state" ]; then
+      echo "State: $found_state"
+      echo "warning: state directory does not match agent name '$name'" >&2
+      [ -e "$found_state/GOAL.md" ] && echo "Goal: $found_state/GOAL.md" || echo "Goal: missing $found_state/GOAL.md" >&2
+      [ -e "$found_state/PROGRESS.md" ] && echo "Progress: $found_state/PROGRESS.md" || echo "Progress: missing $found_state/PROGRESS.md" >&2
+    else
+      echo "State: missing $expected_state" >&2
+    fi
+  fi
+
+  echo "LLVM build: $dir/llvm-build"
+  echo "LLVM clang: $dir/llvm-build/bin/clang"
+  echo "LLVM wrapper: $dir/clang-wrapper"
+}
+
+write_agent_instructions() {
+  dir=$1
+  state=$2
+
+  cat > "$dir/AGENTS.md" <<EOF
+# Agent Instructions
+
+Work in \`oxcaml/\`.
+
+Use the workspace instructions at \`../../AGENTS.md\` for shared rules. This
+agent's current handoff state is in \`oxcaml/$state/\`.
+
+The private local LLVM paths for this agent are:
+
+- LLVM build: \`llvm-build/\`
+- clang: \`llvm-build/bin/clang\`
+- optional wrapper: \`clang-wrapper\`
+- wrapper target: \`clang-wrapper.target\`
+- wrapper log: \`clang-wrapper.log\`
+
+From \`oxcaml/\`, pass \`LLVM_PATH=\$PWD/../llvm-build/bin/clang\` to commands
+that need the custom clang. If wrapper logs are needed, run
+\`../../../scripts/write-agent-clang-wrapper ../llvm-build/bin/clang\`, then
+pass \`LLVM_PATH=\$PWD/../clang-wrapper\`.
+EOF
+}
+
 if [ -e "$agent_dir" ]; then
   if [ ! -d "$agent_dir" ]; then
     echo "agent path exists but is not a directory: $agent_dir" >&2
     exit 1
   fi
-  echo "using existing $agent_dir"
-  echo "Code checkout: $agent_dir/oxcaml"
-  echo "Goal: $state_dir/GOAL.md"
-  echo "Progress: $state_dir/PROGRESS.md"
+  print_agent_paths "$agent_dir" "$agent_name"
   exit 0
 fi
 
@@ -145,8 +222,6 @@ pr_url=$(gh pr create \
   --title "Agent: $agent_name" \
   --body-file "$pr_body")
 
-initial_commit=$(git -C "$agent_dir/oxcaml" rev-parse --short=12 HEAD)
-
 cat > "$state_dir/GOAL.md" <<EOF
 # Goal
 
@@ -180,7 +255,6 @@ Fresh agent workspace created. No claim yet.
 
 - OxCaml branch: \`$ox_branch\`
 - OxCaml PR: $pr_url
-- Initial state commit: \`$initial_commit\`
 - Vendored LLVM path: \`oxcaml/vendor/llvm-project\`
 - Agent state path: \`$state_rel\`
 
@@ -194,66 +268,10 @@ Define the goal, then make the smallest focused change or reproducer.
 EOF
 
 git -C "$agent_dir/oxcaml" add "$state_rel/GOAL.md" "$state_rel/PROGRESS.md"
-git -C "$agent_dir/oxcaml" commit -m "Record agent PR"
-git -C "$agent_dir/oxcaml" push
+git -C "$agent_dir/oxcaml" commit --amend --no-edit
+git -C "$agent_dir/oxcaml" push --force-with-lease
 
-cat > "$agent_dir/AGENTS.md" <<EOF
-# Agent Instructions
-
-Follow \`oxcaml/$state_rel/GOAL.md\`.
-
-This directory is \`agents/$agent_name/\`. The code checkout is \`oxcaml/\`.
-Handoff notes for this task go in \`oxcaml/$state_rel/PROGRESS.md\`.
-
-Keep \`oxcaml/$state_rel/PROGRESS.md\` compact: current claim, evidence,
-current blocker, next step, branches, commits, and PR links.
-
-Commit real code or test progress. Progress-only commits are allowed only when
-they update \`$state_rel/PROGRESS.md\`.
-Push committed progress updates so the current handoff state is visible on the
-GitHub PR.
-
-Push agent branches to Jules's \`julesjacobs/oxcaml\` fork. Use
-\`julesjacobs/llvm-project\` only for maintaining the LLVM import-source
-checkout or when explicitly requested. Do not push to upstream repositories.
-
-Before acting on GitHub review comments, verify that the comment is correct.
-
-Avoid running multiple \`make\` or \`dune\` commands at the same time in the
-same checkout.
-
-The nested \`oxcaml/AGENTS.md\` is generic OxCaml guidance. Use it for codebase
-context and command names. For this workspace, this file overrides it on
-commits, pushes, progress files, test scope, and whether command output should
-be silent.
-
-Before LLVM-backend work in an agent checkout, initialize per-agent temporary
-paths:
-
-\`\`\`sh
-eval "\$(../../../scripts/agent-tmp-env)"
-\`\`\`
-
-If you need a clang wrapper:
-
-\`\`\`sh
-eval "\$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"
-\`\`\`
-
-Use \`\$LLVM_PATH\` and check \`\$LLVM_WRAPPER_LOG\`. Do not use a shared wrapper
-or log. Verify real LLVM use by checking for \`-x ir\` and the fixed-register
-flags.
-
-Do not treat the historical \`stage4\`/\`stage5\` script names as conceptual
-validation stages. During normal work, iterate with the standard installed
-compiler and \`-llvm-backend\`. Use self-stage2 for full validation unless
-\`oxcaml/$state_rel/GOAL.md\` says otherwise.
-
-If a self-stage or stage2 failure appears, first try to reduce it to a focused
-test case that already fails with the standard compiler using \`-llvm-backend\`.
-If it only reproduces with self-stage2, record the smallest self-stage2
-reproducer and why the standard \`-llvm-backend\` compiler does not cover it.
-EOF
+write_agent_instructions "$agent_dir" "$state_rel"
 
 echo "created $agent_dir"
 echo "OxCaml branch: $ox_branch"
@@ -261,3 +279,6 @@ echo "OxCaml PR: $pr_url"
 echo "Goal: $state_dir/GOAL.md"
 echo "Progress: $state_dir/PROGRESS.md"
 echo "Vendored LLVM path: $agent_dir/oxcaml/vendor/llvm-project"
+echo "LLVM build: $agent_dir/llvm-build"
+echo "LLVM clang: $agent_dir/llvm-build/bin/clang"
+echo "LLVM wrapper: $agent_dir/clang-wrapper"

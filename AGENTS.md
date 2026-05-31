@@ -6,6 +6,7 @@ Start from the workspace root with
 `scripts/use-or-create-agent <agent-name>`. It prints the existing agent paths
 when `agents/<agent-name>/` exists, or creates that agent with branch
 `jujacobs/<agent-name>` and opens a draft OxCaml PR when it does not.
+Use `scripts/agent-doctor [agent-name]` to check current agent state.
 
 Inside an agent directory, the canonical goal file is
 `agents/<goal-name>/oxcaml/agent-state/<goal-name>/GOAL.md`. It decides
@@ -39,11 +40,19 @@ Advice:
   time in the same checkout, because they may contend on dune's lockfile and
   deadlock. This does not mean single builds should be serialized: let one
   build/test command use its normal internal parallelism.
-- Before LLVM-backend work in an agent checkout, run
-  `eval "$(../../../scripts/agent-tmp-env)"`. If you need a clang wrapper, run
-  `eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"`. Use
-  `$LLVM_PATH` and check `$LLVM_WRAPPER_LOG`; do not use a shared wrapper or
-  log.
+- Use `scripts/agent-doctor [agent-name]` when an agent path, branch, state
+  file, or LLVM helper path looks suspicious. Fix the reported mismatch before
+  starting long builds or tests.
+- An agent should be able to work from its private checkout without knowing the
+  surrounding workspace. Keep that agent's custom LLVM build beside the checkout
+  at `../llvm-build`, with clang at `../llvm-build/bin/clang`. Pass
+  `LLVM_PATH=$PWD/../llvm-build/bin/clang` to commands that need the custom
+  clang. If a command needs wrapper logs, run
+  `../../../scripts/write-agent-clang-wrapper ../llvm-build/bin/clang` from the
+  checkout, then pass `LLVM_PATH=$PWD/../clang-wrapper`. Check
+  `../clang-wrapper.target` for the wrapped clang and `../clang-wrapper.log` for
+  fresh `-x ir` invocations. Do not point LLVM commands at `/usr/bin/clang`, a
+  shared wrapper, or another agent's LLVM build.
 - Keep native and LLVM-backend builds explicitly separated. LLVM self-stage
   scripts write `duneconf/*.ws` files that inject
   `OCAMLPARAM=_,llvm-backend=1,llvm-path=...`; a later plain `make install`

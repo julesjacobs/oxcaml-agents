@@ -1,0 +1,120 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "usage: $0 [agent-name]" >&2
+  echo "checks agent worktrees, state files, and local LLVM helper paths" >&2
+  exit 2
+}
+
+[ "$#" -le 1 ] || usage
+
+workspace=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+check_agent() {
+  agent_dir=$1
+  agent_name=$(basename -- "$agent_dir")
+  oxcaml_dir="$agent_dir/oxcaml"
+  expected_state="$oxcaml_dir/agent-state/$agent_name"
+  ok=1
+
+  echo "== $agent_name =="
+
+  if [ ! -d "$oxcaml_dir" ]; then
+    echo "ERROR: missing checkout: $oxcaml_dir"
+    echo
+    return 1
+  fi
+
+  if ! git -C "$oxcaml_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "ERROR: not a git worktree: $oxcaml_dir"
+    echo
+    return 1
+  fi
+
+  top=$(git -C "$oxcaml_dir" rev-parse --show-toplevel 2>/dev/null || true)
+  top_real=$(CDPATH= cd -- "$top" && pwd -P)
+  oxcaml_real=$(CDPATH= cd -- "$oxcaml_dir" && pwd -P)
+  if [ "$top_real" != "$oxcaml_real" ]; then
+    echo "ERROR: $oxcaml_dir is inside another git repo, not its own worktree"
+    echo "git top-level: $top_real"
+    echo
+    return 1
+  fi
+
+  branch=$(git -C "$oxcaml_dir" branch --show-current 2>/dev/null || true)
+  head=$(git -C "$oxcaml_dir" rev-parse --short=12 HEAD 2>/dev/null || true)
+  dirty=$(git -C "$oxcaml_dir" status --porcelain 2>/dev/null || true)
+
+  echo "checkout: $oxcaml_dir"
+  echo "branch: ${branch:-detached}"
+  echo "head: ${head:-unknown}"
+  if [ -n "$dirty" ]; then
+    echo "dirty: yes"
+  else
+    echo "dirty: no"
+  fi
+
+  state_dirs=$(find "$oxcaml_dir/agent-state" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort || true)
+  if [ -d "$expected_state" ]; then
+    echo "state: $expected_state"
+  elif [ -n "$state_dirs" ]; then
+    echo "WARN: expected state missing: $expected_state"
+    echo "state dirs:"
+    printf '%s\n' "$state_dirs" | sed 's/^/  /'
+  else
+    echo "ERROR: no agent-state directory found"
+    ok=0
+  fi
+
+  state_to_check=$expected_state
+  if [ ! -d "$state_to_check" ]; then
+    state_to_check=$(printf '%s\n' "$state_dirs" | sed -n '1p')
+  fi
+
+  if [ -n "$state_to_check" ]; then
+    [ -f "$state_to_check/GOAL.md" ] || { echo "WARN: missing $state_to_check/GOAL.md"; ok=0; }
+    [ -f "$state_to_check/PROGRESS.md" ] || { echo "WARN: missing $state_to_check/PROGRESS.md"; ok=0; }
+  fi
+
+  if [ -x "$agent_dir/llvm-build/bin/clang" ]; then
+    echo "llvm clang: $agent_dir/llvm-build/bin/clang"
+  else
+    echo "llvm clang: missing $agent_dir/llvm-build/bin/clang"
+  fi
+
+  if [ -f "$agent_dir/clang-wrapper.target" ]; then
+    echo "wrapper target:"
+    sed 's/^/  /' "$agent_dir/clang-wrapper.target"
+  elif [ -e "$agent_dir/clang-wrapper" ]; then
+    echo "WARN: wrapper exists but target file is missing"
+    ok=0
+  else
+    echo "wrapper: absent"
+  fi
+
+  echo
+  [ "$ok" -eq 1 ]
+}
+
+status=0
+
+if [ "$#" -eq 1 ]; then
+  agent_name=$1
+  case "$agent_name" in
+    *[!A-Za-z0-9._-]*|'') usage ;;
+  esac
+  check_agent "$workspace/agents/$agent_name" || status=1
+else
+  found=0
+  for agent_dir in "$workspace"/agents/*; do
+    [ -d "$agent_dir" ] || continue
+    found=1
+    check_agent "$agent_dir" || status=1
+  done
+  if [ "$found" -eq 0 ]; then
+    echo "no agents found under $workspace/agents"
+  fi
+fi
+
+exit "$status"

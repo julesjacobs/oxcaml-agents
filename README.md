@@ -58,6 +58,15 @@ does not exist, the command creates it with branch `jujacobs/<agent-name>`,
 pushes that branch to `julesjacobs/oxcaml`, opens a draft OxCaml PR, and records
 the PR link in the agent state files.
 
+Check existing agents with:
+
+```sh
+./scripts/agent-doctor [agent-name]
+```
+
+Use this when an agent path, branch, state file, or LLVM helper path looks
+suspicious. Fix the reported mismatch before starting long builds or tests.
+
 Work in:
 
 ```text
@@ -69,21 +78,37 @@ The task definition is
 for that agent go in
 `agents/<agent-name>/oxcaml/agent-state/<agent-name>/PROGRESS.md`.
 
-Before LLVM-backend work in an agent checkout, initialize per-agent temporary
-paths:
+Agent checkouts should work as private worktrees. Put local helper state beside
+the checkout, not in a shared location:
 
-```sh
-eval "$(../../../scripts/agent-tmp-env)"
+```text
+agents/<agent-name>/
+  oxcaml/
+  llvm-build/
+  clang-wrapper
+  clang-wrapper.log
+  clang-wrapper.target
 ```
 
-If you need a clang wrapper:
+Keep the custom LLVM build for that agent under `../llvm-build`. The expected
+clang path from inside `oxcaml/` is `../llvm-build/bin/clang`.
+
+For normal build commands, pass the local clang directly:
 
 ```sh
-eval "$(../../../scripts/write-agent-clang-wrapper /path/to/clang)"
+LLVM_PATH=$PWD/../llvm-build/bin/clang make install LLVM_BACKEND=1
 ```
 
-Use `$LLVM_PATH` and check `$LLVM_WRAPPER_LOG`. Do not use a shared wrapper or
-log.
+If you need wrapper logs for validation evidence:
+
+```sh
+../../../scripts/write-agent-clang-wrapper ../llvm-build/bin/clang
+```
+
+Then pass `LLVM_PATH=$PWD/../clang-wrapper` to the command you are auditing.
+Check `../clang-wrapper.target` and `../clang-wrapper.log` to prove which clang
+was used. Do not use `/usr/bin/clang`, a shared wrapper, or another agent's LLVM
+build for LLVM-backend work.
 
 ## Branches
 
@@ -202,7 +227,8 @@ agents/llvm-stack-checks/
 It also pushes `jujacobs/llvm-stack-checks`, opens a draft PR in
 `julesjacobs/oxcaml`, and records the PR link in
 `oxcaml/agent-state/llvm-stack-checks/GOAL.md` and
-`oxcaml/agent-state/llvm-stack-checks/PROGRESS.md`.
+`oxcaml/agent-state/llvm-stack-checks/PROGRESS.md`. The PR link is amended into
+the initial setup commit, so a fresh agent starts with one setup commit.
 
 The agent's LLVM edit location is
 `agents/llvm-stack-checks/oxcaml/vendor/llvm-project`.
@@ -307,11 +333,13 @@ stage-style validation and is slower than the regular testsuite targets. Use it
 when the stage-style environment is needed. For normal installed-compiler work,
 prefer the regular testsuite targets, which can use GNU parallel.
 
-When testing LLVM-backend behavior, prove real LLVM use. The usual check is that
-`$LLVM_WRAPPER_LOG` contains `-x ir` and the fixed-register flags.
+When testing LLVM-backend behavior, prove real LLVM use. First check
+`../clang-wrapper.target` to confirm the wrapper is using that agent's custom
+clang, then check that `../clang-wrapper.log` contains fresh `-x ir`
+invocations and the expected fixed-register flags.
 
 ```text
--ffixed-x15 -ffixed-x26 -ffixed-x27 -ffixed-x28
+-ffixed-x15 -ffixed-x26
 ```
 
 Use focused reproducers and tests before broad self-hosting runs. Broad tests
@@ -330,11 +358,11 @@ For backend-generated executable failures, try `_install` first:
 STAGE_INSTALL=$PWD/_install \
 STAGE_BUILD=$PWD/_build \
 NORMAL_BUILD=$PWD/_build \
-FAKE_ROOT=$FAKE_ROOT \
-LIST=$LIST \
+FAKE_ROOT=$PWD/../ocamltest-src \
+LIST=$PWD/../all-minus-asm-list.txt \
 GENERATE_LIST=0 \
-LLVM_WRAPPER=$LLVM_WRAPPER \
-LLVM_WRAPPER_LOG=$LLVM_WRAPPER_LOG \
+LLVM_WRAPPER=$PWD/../clang-wrapper \
+LLVM_WRAPPER_LOG=$PWD/../clang-wrapper.log \
   tools/run-llvm-stage5-ocamltest.sh
 ```
 

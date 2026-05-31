@@ -3,7 +3,8 @@ set -eu
 
 usage() {
   echo "usage: $0 [agent-name] <clang-path>" >&2
-  echo "creates a per-agent clang wrapper under /tmp/oxcaml-agent-<agent-name>/" >&2
+  echo "creates a per-agent clang wrapper beside agents/<agent-name>/oxcaml/" >&2
+  echo "clang-path should normally be ../llvm-build/bin/clang from the agent checkout" >&2
   exit 2
 }
 
@@ -26,6 +27,44 @@ if [ ! -x "$clang_path" ]; then
   exit 1
 fi
 
+canonical_path() {
+  dir=$(dirname -- "$1")
+  base=$(basename -- "$1")
+  case "$dir" in
+    /*) ;;
+    *) dir=$PWD/$dir ;;
+  esac
+  real_dir=$(CDPATH= cd -- "$dir" && pwd -P)
+  printf '%s/%s\n' "$real_dir" "$base"
+}
+
+clang_path=$(canonical_path "$clang_path")
+agent_dir_real=$(CDPATH= cd -- "$OXCAML_AGENT_DIR" && pwd -P)
+
+version=$("$clang_path" --version 2>/dev/null | sed -n '1p' || true)
+case "$version" in
+  *"Apple clang"*)
+    if [ "${ALLOW_SYSTEM_CLANG_WRAPPER:-0}" != 1 ]; then
+      echo "refusing to wrap Apple clang: $clang_path" >&2
+      echo "build or move the custom LLVM build under $OXCAML_AGENT_DIR/llvm-build" >&2
+      echo "set ALLOW_SYSTEM_CLANG_WRAPPER=1 only for non-LLVM-backend smoke tests" >&2
+      exit 1
+    fi
+    ;;
+esac
+
+case "$clang_path" in
+  "$agent_dir_real"/*) ;;
+  *)
+    if [ "${ALLOW_EXTERNAL_CLANG_WRAPPER:-0}" != 1 ]; then
+      echo "refusing to wrap clang outside this agent directory: $clang_path" >&2
+      echo "expected something under $OXCAML_AGENT_DIR, usually $LLVM_CLANG" >&2
+      echo "move the LLVM build beside this agent checkout or set ALLOW_EXTERNAL_CLANG_WRAPPER=1" >&2
+      exit 1
+    fi
+    ;;
+esac
+
 cat > "$LLVM_WRAPPER" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -36,13 +75,15 @@ EOF
 
 chmod +x "$LLVM_WRAPPER"
 : > "$LLVM_WRAPPER_LOG"
+{
+  printf 'clang=%s\n' "$clang_path"
+  printf 'version=%s\n' "$version"
+} > "$LLVM_WRAPPER_TARGET"
 
 cat <<EOF
-export OXCAML_AGENT_TMP='$OXCAML_AGENT_TMP'
-export TMPDIR='$TMPDIR'
-export LLVM_WRAPPER='$LLVM_WRAPPER'
-export LLVM_PATH='$LLVM_PATH'
-export LLVM_WRAPPER_LOG='$LLVM_WRAPPER_LOG'
-export FAKE_ROOT='$FAKE_ROOT'
-export LIST='$LIST'
+wrote clang wrapper: $LLVM_WRAPPER
+wrapped clang: $clang_path
+target file: $LLVM_WRAPPER_TARGET
+log file: $LLVM_WRAPPER_LOG
+use with: LLVM_PATH=$LLVM_WRAPPER
 EOF
